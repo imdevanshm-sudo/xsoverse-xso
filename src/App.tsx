@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import XsoCinematicCanvas from './components/XsoCinematicCanvas';
 
 const BREATH_DURATION = 6;
 const INITIAL_HOLD_DURATION = 1800;
 const RITUAL_HOLD_DURATION = 4000;
 
-type AppState = 'IDLE' | 'FOCUSED_INITIAL' | 'VIDEO' | 'IDLE_DARK' | 'UNSEALED_EMBER' | 'REEMERGENCE' | 'RITUAL_HOLD' | 'FRACTURE' 
+type AppState = 'IDLE' | 'FOCUSED_INITIAL' | 'VIDEO' | 'MEMORY_CANVAS' | 'IDLE_DARK' | 'UNSEALED_EMBER' | 'REEMERGENCE' | 'RITUAL_HOLD' | 'FRACTURE' 
   | 'VOICE_PROMPT' | 'RECORDING_VOICE' | 'VOICE_READY_TO_RELEASE' | 'RELEASED_ORBIT';
 
 const BackgroundParticles = React.memo(({ isDark }: { isDark: boolean }) => {
@@ -233,7 +234,7 @@ export default function App() {
   }, [appState]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (appState === 'VIDEO' || appState === 'IDLE_DARK' || appState === 'UNSEALED_EMBER' || appState === 'FRACTURE' || appState === 'RELEASED_ORBIT') return;
+    if (appState === 'VIDEO' || appState === 'MEMORY_CANVAS' || appState === 'IDLE_DARK' || appState === 'UNSEALED_EMBER' || appState === 'FRACTURE' || appState === 'RELEASED_ORBIT') return;
 
     pointerStateRef.current = { startY: e.clientY, isDragging: false };
 
@@ -297,7 +298,7 @@ export default function App() {
     }
   };
 
-  const isDarkPhase = appState === 'IDLE_DARK' || appState === 'UNSEALED_EMBER' || appState === 'REEMERGENCE' || appState === 'RITUAL_HOLD' || appState === 'FRACTURE' || appState === 'VOICE_PROMPT' || appState === 'RECORDING_VOICE' || appState === 'VOICE_READY_TO_RELEASE' || appState === 'RELEASED_ORBIT';
+  const isDarkPhase = appState === 'MEMORY_CANVAS' || appState === 'IDLE_DARK' || appState === 'UNSEALED_EMBER' || appState === 'REEMERGENCE' || appState === 'RITUAL_HOLD' || appState === 'FRACTURE' || appState === 'VOICE_PROMPT' || appState === 'RECORDING_VOICE' || appState === 'VOICE_READY_TO_RELEASE' || appState === 'RELEASED_ORBIT';
   const showPearl = appState === 'IDLE' || appState === 'FOCUSED_INITIAL' || appState === 'REEMERGENCE' || appState === 'RITUAL_HOLD' || appState === 'VOICE_PROMPT' || appState === 'RECORDING_VOICE' || appState === 'VOICE_READY_TO_RELEASE' || appState === 'RELEASED_ORBIT';
   const isHoldingPearl = appState === 'FOCUSED_INITIAL' || appState === 'RITUAL_HOLD';
   const isCoolingPhase = appState === 'VOICE_PROMPT' || appState === 'RECORDING_VOICE' || appState === 'VOICE_READY_TO_RELEASE' || appState === 'RELEASED_ORBIT';
@@ -349,7 +350,24 @@ export default function App() {
             onLoadedMetadata={(e) => {
               (e.target as HTMLVideoElement).currentTime = 0.5;
             }}
-            onEnded={() => setAppState('IDLE_DARK')}
+            onEnded={() => setAppState('MEMORY_CANVAS')}
+          />
+        </div>
+      )}
+
+      {/* Memory Cinematic Canvas Overlay */}
+      {appState === 'MEMORY_CANVAS' && (
+        <div className="absolute inset-0 z-50 pointer-events-auto">
+          <XsoCinematicCanvas 
+            auraWeight={[1, 1]}
+            masterAudioUrl="https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg"
+            media={[
+              { id: '1', type: 'image', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&fit=crop', title: 'Summer in Kyoto - 2024', voiceNoteUrl: 'https://actions.google.com/sounds/v1/human_voices/human_voice_clip.ogg' },
+              { id: '2', type: 'audio', url: '/Easy on Me Now.mp3', title: 'Voice Note from Taylor', duration: '0:42' },
+              { id: '3', type: 'video', url: '/video.mp4', title: 'Night Ride' },
+              { id: '4', type: 'image', url: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=800&fit=crop', title: 'The drive back home...', voiceNoteUrl: 'https://actions.google.com/sounds/v1/water/rain_on_roof.ogg' }
+            ]}
+            onComplete={() => setAppState('IDLE_DARK')}
           />
         </div>
       )}
