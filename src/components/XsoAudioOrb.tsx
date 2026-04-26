@@ -21,17 +21,21 @@ export function XsoAudioOrb({ src, title, duration, onPlayStart, onPlayStop }: X
   const lastVibeRef = useRef(0);
 
   const bassMotion = useMotionValue(0);
+  const midMotion = useMotionValue(0);
   const highMotion = useMotionValue(0);
 
   const smoothBass = useSpring(bassMotion, { stiffness: 300, damping: 30 });
+  const smoothMid = useSpring(midMotion, { stiffness: 350, damping: 35 });
   const smoothHigh = useSpring(highMotion, { stiffness: 400, damping: 40 });
 
-  const auraScale = useTransform(smoothBass, [0, 255], [0.8, 1.6]);
-  const auraOpacity = useTransform(smoothBass, [0, 255], [0.0, 0.9]);
+  const auraScale = useTransform(smoothBass, [0, 255], [0.8, 1.8]);
+  const auraOpacity = useTransform(smoothBass, [0, 255], [0.0, 1.0]);
   const orbGlow = useTransform(smoothHigh, [0, 255], [
     'inset 0 0 0px rgba(255,255,255,0)',
-    'inset 0 0 80px rgba(255,255,255,0.7)',
+    'inset 0 0 120px rgba(200,220,255,0.9)',
   ]);
+  const anchorScale = useTransform(smoothMid, [0, 255], [1, 1.5]);
+  const anchorOpacity = useTransform(smoothMid, [0, 255], [0.3, 0.9]);
 
   const initAudio = () => {
     if (!audioRef.current) return;
@@ -70,15 +74,20 @@ export function XsoAudioOrb({ src, title, duration, onPlayStart, onPlayStop }: X
     const bassAvg = bassSum / 15;
     bassMotion.set(bassAvg);
 
+    let midSum = 0;
+    for (let i = 15; i < 60; i++) midSum += dataArray[i];
+    const midAvg = midSum / 45;
+    midMotion.set(midAvg);
+
     let highSum = 0;
     for (let i = 150; i < 200; i++) highSum += dataArray[i];
     const highAvg = highSum / 50;
     highMotion.set(highAvg);
 
     const now = performance.now();
-    // Haptic hit on solid bass notes
-    if (bassAvg > 160 && now - lastVibeRef.current > 90) {
-      if (navigator.vibrate) navigator.vibrate(15);
+    // Haptic hit on cadence (combination of mid and bass)
+    if ((bassAvg > 130 || midAvg > 120) && now - lastVibeRef.current > 70) {
+      if (navigator.vibrate) navigator.vibrate(10);
       lastVibeRef.current = now;
     }
 
@@ -95,6 +104,7 @@ export function XsoAudioOrb({ src, title, duration, onPlayStart, onPlayStop }: X
     isHeldRef.current = false;
     if (rAFRef.current) cancelAnimationFrame(rAFRef.current);
     bassMotion.set(0);
+    midMotion.set(0);
     highMotion.set(0);
   };
 
@@ -162,9 +172,9 @@ export function XsoAudioOrb({ src, title, duration, onPlayStart, onPlayStop }: X
              animate={{ rotate: isHeld ? 360 : 0 }}
              transition={{ duration: 15, ease: "linear", repeat: Infinity }}
          >
-            <div className="absolute w-[60vw] md:w-[30vw] aspect-square bg-cyan-500/40 rounded-full blur-[80px] md:blur-[100px] -translate-x-12 translate-y-12" />
-            <div className="absolute w-[50vw] md:w-[25vw] aspect-square bg-fuchsia-500/40 rounded-full blur-[80px] md:blur-[100px] translate-x-12 -translate-y-8" />
-            <div className="absolute w-[70vw] md:w-[35vw] aspect-square bg-violet-600/40 rounded-full blur-[100px] md:blur-[120px]" />
+            <div className="absolute w-[60vw] md:w-[30vw] aspect-square bg-cyan-400/60 rounded-full blur-[80px] md:blur-[100px] -translate-x-12 translate-y-12" />
+            <div className="absolute w-[50vw] md:w-[25vw] aspect-square bg-fuchsia-400/60 rounded-full blur-[80px] md:blur-[100px] translate-x-12 -translate-y-8" />
+            <div className="absolute w-[70vw] md:w-[35vw] aspect-square bg-violet-500/60 rounded-full blur-[100px] md:blur-[120px]" />
          </motion.div>
       </div>
 
@@ -183,21 +193,25 @@ export function XsoAudioOrb({ src, title, duration, onPlayStart, onPlayStop }: X
           style={{ boxShadow: orbGlow }}
         />
         {/* Core visual anchor */}
-        <div className="w-16 h-16 md:w-24 md:h-24 rounded-full bg-white/10 blur-xl pointer-events-none" />
+        <motion.div 
+          className="w-16 h-16 md:w-24 md:h-24 rounded-full bg-white/20 blur-xl pointer-events-none"
+          style={{ scale: anchorScale, opacity: anchorOpacity }}
+        />
       </motion.div>
 
       {/* Typography Overlay */}
-      <div className="absolute bottom-4 flex flex-col items-center pointer-events-none z-20 w-full text-center">
-        <h3 className="text-xl md:text-2xl tracking-wide mb-2 font-serif text-white opacity-90 drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]">
+      <div className="mt-12 flex flex-col items-center pointer-events-none z-20 w-full text-center">
+        <h3 className="text-sm md:text-base tracking-widest mb-2 font-sans font-light text-white/70 drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)] uppercase">
            {title || "Voice Note"}
         </h3>
-        <p className="text-white/40 text-xs md:text-sm font-mono tracking-[0.3em] uppercase mb-6 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+        <p className="text-white/40 text-xs font-mono tracking-[0.2em] mb-4">
            {timeLeft}
         </p>
         <div className="h-4 relative w-full flex justify-center">
             <AnimatePresence>
                {!isHeld && (
                   <motion.div 
+                     key="hold-listen-hint"
                      className="absolute"
                      initial={{ opacity: 0 }} 
                      animate={{ opacity: 1 }} 

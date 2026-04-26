@@ -160,11 +160,17 @@ const FracturedCrystal = React.memo(() => {
 export default function App() {
   const [appState, setAppState] = useState<AppState>('IDLE');
   const [shareEcho, setShareEcho] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
   
   const holdTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const ritualHapticIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pointerStateRef = useRef({ startY: 0, isDragging: false });
   const spaceVideoRef = useRef<HTMLVideoElement>(null);
+
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const microphoneRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
   // Background breathing haptics for IDLE
   useEffect(() => {
@@ -223,19 +229,93 @@ export default function App() {
     }
   }, [appState]);
 
-  // Simulated recording waveform haptics
+  // Audio recording volume analysis
   useEffect(() => {
-    if (appState === 'RECORDING_VOICE' && navigator.vibrate) {
-      const intervalId = setInterval(() => {
-        navigator.vibrate([15, 20, 15, 40]);
-      }, 400);
-      return () => clearInterval(intervalId);
+    if (appState === 'RECORDING_VOICE') {
+      let isComponentMounted = true;
+      
+      const startAudio = async () => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          if (!isComponentMounted) {
+            stream.getTracks().forEach(t => t.stop());
+            return;
+          }
+          
+          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+          analyserRef.current = audioContextRef.current.createAnalyser();
+          microphoneRef.current = audioContextRef.current.createMediaStreamSource(stream);
+          microphoneRef.current.connect(analyserRef.current);
+          
+          analyserRef.current.fftSize = 256;
+          const bufferLength = analyserRef.current.frequencyBinCount;
+          const dataArray = new Uint8Array(bufferLength);
+          
+          const updateAudioLevel = () => {
+            if (!analyserRef.current || !isComponentMounted) return;
+            
+            analyserRef.current.getByteFrequencyData(dataArray);
+            
+            let sum = 0;
+            for (let i = 0; i < bufferLength; i++) {
+              sum += dataArray[i];
+            }
+            
+            const average = sum / bufferLength;
+            setAudioLevel(average);
+            
+            animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
+          };
+          
+          updateAudioLevel();
+        } catch (err) {
+          console.error("Microphone access denied or not available", err);
+        }
+      };
+      
+      startAudio();
+
+      if (navigator.vibrate) {
+        const intervalId = setInterval(() => {
+          navigator.vibrate([15, 20, 15, 40]);
+        }, 400);
+        return () => {
+          isComponentMounted = false;
+          clearInterval(intervalId);
+          if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+          if (audioContextRef.current) audioContextRef.current.close();
+          if (microphoneRef.current?.mediaStream) {
+            microphoneRef.current.mediaStream.getTracks().forEach(track => track.stop());
+          }
+        };
+      } else {
+        return () => {
+          isComponentMounted = false;
+          if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+          if (audioContextRef.current) audioContextRef.current.close();
+          if (microphoneRef.current?.mediaStream) {
+            microphoneRef.current.mediaStream.getTracks().forEach(track => track.stop());
+          }
+        };
+      }
+    } else {
+      setAudioLevel(0);
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      if (audioContextRef.current) audioContextRef.current.close();
+      if (microphoneRef.current?.mediaStream) {
+        microphoneRef.current.mediaStream.getTracks().forEach(track => track.stop());
+      }
     }
   }, [appState]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (appState === 'VIDEO' || appState === 'MEMORY_CANVAS' || appState === 'IDLE_DARK' || appState === 'UNSEALED_EMBER' || appState === 'FRACTURE' || appState === 'RELEASED_ORBIT') return;
 
+    pointerStateRef.current = { startY: e.clientY, isDragging: false };
+  };
+
+  const handlePearlPointerDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
     pointerStateRef.current = { startY: e.clientY, isDragging: false };
 
     if (appState === 'IDLE') {
@@ -274,10 +354,19 @@ export default function App() {
         if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
         if (navigator.vibrate) navigator.vibrate([10, 40, 20, 40]); // cooling haptic
       }
+    } else if ((appState === 'VOICE_PROMPT' || appState === 'RECORDING_VOICE' || appState === 'VOICE_READY_TO_RELEASE') && pointerStateRef.current.startY > 0) {
+      const deltaY = e.clientY - pointerStateRef.current.startY;
+      if (deltaY > 60) {
+        // Swipe DOWN detected -> Revert to Reemergence
+        setAppState('REEMERGENCE');
+        pointerStateRef.current = { startY: 0, isDragging: false };
+        if (navigator.vibrate) navigator.vibrate([40, 20, 10]); // revert haptic
+      }
     }
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e?: React.SyntheticEvent) => {
+    if (e && e.stopPropagation) e.stopPropagation();
     pointerStateRef.current = { startY: 0, isDragging: false };
 
     if (holdTimeoutRef.current) {
@@ -337,6 +426,33 @@ export default function App() {
           ease: 'easeInOut' 
         }}
       />
+      
+      {/* Starry Night Overlay during Voice steps */}
+      <AnimatePresence>
+        {isCoolingPhase && appState !== 'RELEASED_ORBIT' && (
+          <motion.div
+            className="absolute inset-0 z-0 pointer-events-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.5 }}
+          >
+            {Array.from({ length: 150 }).map((_, i) => (
+              <div 
+                key={`star-${i}`} 
+                className="absolute rounded-full bg-white"
+                style={{ 
+                  top: `${Math.random() * 100}%`, 
+                  left: `${Math.random() * 100}%`, 
+                  width: `${Math.random() * 2 + 0.5}px`, 
+                  height: `${Math.random() * 2 + 0.5}px`,
+                  opacity: Math.random() * 0.8 + 0.2
+                }} 
+              />
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Video Overlay */}
       {appState === 'VIDEO' && (
@@ -376,6 +492,7 @@ export default function App() {
       <AnimatePresence>
         {appState === 'UNSEALED_EMBER' && (
           <motion.div
+            key="unsealed-ember"
             className="absolute inset-0 z-40 flex flex-col items-center justify-center min-h-screen overflow-hidden font-serif select-none pointer-events-auto bg-black"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -418,33 +535,39 @@ export default function App() {
 
       {/* Branch B: The Release UI Elements */}
       <AnimatePresence>
-        {isCoolingPhase && appState !== 'RELEASED_ORBIT' && (
+        {appState === 'VOICE_PROMPT' && (
           <motion.div
+            key="cooling-phase"
             className="absolute top-20 left-0 right-0 z-20 flex flex-col items-center pointer-events-none"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 1, ease: 'easeOut', exit: { duration: 0.4 } }}
           >
-            <p className="text-white/60 text-sm tracking-widest uppercase mb-4 text-center">
-              BEFORE IT DRIFTS, WHISPER TO THE VOID.
+            <p className="text-white/30 text-[10px] tracking-widest uppercase mb-4 text-center pb-2">
+              (SWIPE DOWN TO RETRACT)
             </p>
           </motion.div>
         )}
       </AnimatePresence>
       
       <AnimatePresence>
-        {(appState === 'RECORDING_VOICE' || appState === 'VOICE_READY_TO_RELEASE') && (
+        {appState === 'RECORDING_VOICE' && (
           <motion.div
-            className="absolute top-[65%] left-0 right-0 z-20 flex flex-col items-center pointer-events-none"
+            key="recording-status"
+            className="absolute bottom-28 left-0 right-0 z-20 flex flex-col items-center pointer-events-none"
             initial={{ opacity: 0 }}
-            animate={appState === 'RECORDING_VOICE' ? { opacity: [0.3, 1, 0.3] } : { opacity: 1 }}
+            animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={appState === 'RECORDING_VOICE' ? { duration: 1.5, repeat: Infinity, ease: 'easeInOut' } : { duration: 0.3 }}
+            transition={{ duration: 0.3 }}
           >
-            <p className="text-white text-sm tracking-[0.2em] font-medium uppercase drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]">
-              {appState === 'RECORDING_VOICE' ? 'RECORDING...' : 'RECORDED'}
-            </p>
+            <motion.p 
+              animate={{ opacity: [0.3, 1, 0.3] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+              className="text-white text-sm tracking-[0.2em] font-medium uppercase drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]"
+            >
+              RECORDING...
+            </motion.p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -452,27 +575,13 @@ export default function App() {
       <AnimatePresence>
         {appState === 'VOICE_READY_TO_RELEASE' && (
           <motion.div
+            key="voice-ready-release"
             className="absolute bottom-16 left-0 right-0 z-20 flex flex-col items-center pointer-events-auto"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 1, ease: 'easeOut', exit: { duration: 0.4 } }}
           >
-            <div 
-              className="flex items-center gap-3 mb-8 cursor-pointer group" 
-              onClick={() => setShareEcho(!shareEcho)}
-            >
-              {/* Radio Button Style */}
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${shareEcho ? 'border-white' : 'border-white/30'}`}>
-                <motion.div 
-                  initial={false}
-                  animate={{ scale: shareEcho ? 1 : 0 }}
-                  className="w-3 h-3 bg-white rounded-full" 
-                />
-              </div>
-              <span className="text-white/80 text-sm tracking-wide group-hover:text-white transition-colors">Let the sender hear the echo?</span>
-            </div>
-            
             <button 
               className="px-10 py-3.5 bg-white text-black font-semibold tracking-[0.15em] text-sm rounded-full uppercase hover:bg-neutral-200 active:scale-95 transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)]"
               onClick={() => {
@@ -513,6 +622,7 @@ export default function App() {
       <AnimatePresence>
         {appState === 'RITUAL_HOLD' && (
           <motion.div
+            key="ritual-swirl"
             className="absolute inset-0 z-0 pointer-events-none"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -537,19 +647,24 @@ export default function App() {
       <AnimatePresence>
       {(showPearl || appState === 'FRACTURE') && (
         <motion.div
-          className="relative z-10 w-[75vw] h-[75vw] max-w-[420px] max-h-[420px] md:max-w-[500px] md:max-h-[500px] rounded-full cursor-pointer"
+          key="central-artifact"
+          className="relative z-10 w-[75vw] h-[75vw] max-w-[420px] max-h-[420px] md:max-w-[500px] md:max-h-[500px] rounded-full cursor-pointer pointer-events-auto"
           style={{ willChange: 'transform' }}
+          onPointerDown={handlePearlPointerDown}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerUp}
+          onPointerCancel={handlePointerUp}
           initial={{ opacity: 0, x: 0 }}
           animate={{
             x: 0,
-            y: appState === 'RELEASED_ORBIT' ? -250 : isHoldingPearl ? 0 : isCoolingPhase ? -150 : [-8, 8, -8],
-            scale: appState === 'RELEASED_ORBIT' ? 0 : appState === 'RITUAL_HOLD' ? 0.9 : appState === 'RECORDING_VOICE' ? [0.95, 1, 0.95] : appState === 'VOICE_READY_TO_RELEASE' ? 0.95 : (appState === 'FOCUSED_INITIAL' ? 0.96 : isCoolingPhase ? 0.9 : [1, 1.03, 1]),
-            opacity: appState === 'REEMERGENCE' ? 0.3 : appState === 'RELEASED_ORBIT' ? 0 : isCoolingPhase ? 0.4 : 1, // Dim when waiting or cooled
+            y: appState === 'RELEASED_ORBIT' ? -250 : isHoldingPearl ? 0 : isCoolingPhase ? 0 : [-8, 8, -8],
+            scale: appState === 'RELEASED_ORBIT' ? 0 : appState === 'RITUAL_HOLD' ? 0.9 : appState === 'RECORDING_VOICE' ? 0.98 : appState === 'VOICE_READY_TO_RELEASE' ? 0.95 : (appState === 'FOCUSED_INITIAL' ? 0.96 : isCoolingPhase ? 0.9 : [1, 1.03, 1]),
+            opacity: appState === 'REEMERGENCE' ? 0.3 : appState === 'RELEASED_ORBIT' ? 0 : isCoolingPhase ? 1 : 1, // Full opacity when cooled
           }}
           transition={{
             x: appState === 'RELEASED_ORBIT' ? { duration: 4, ease: [0.65, 0, 0.35, 1] } : { duration: 0.5 },
             y: appState === 'RELEASED_ORBIT' ? { duration: 4, ease: [0.65, 0, 0.35, 1] } : isCoolingPhase ? { type: 'spring', damping: 20, stiffness: 100 } : { duration: BREATH_DURATION * 1.5, repeat: Infinity, ease: 'easeInOut' },
-            scale: appState === 'RELEASED_ORBIT' ? { duration: 4, ease: [0.65, 0, 0.35, 1] } : appState === 'RECORDING_VOICE' ? { duration: 0.2, repeat: Infinity, ease: 'easeInOut', repeatType: "mirror" } : appState === 'FOCUSED_INITIAL'
+            scale: appState === 'RELEASED_ORBIT' ? { duration: 4, ease: [0.65, 0, 0.35, 1] } : appState === 'RECORDING_VOICE' ? { type: "spring", damping: 15, stiffness: 100 } : appState === 'FOCUSED_INITIAL'
               ? { duration: 0.8, ease: 'easeOut' }
               : appState === 'RITUAL_HOLD' ? { duration: RITUAL_HOLD_DURATION / 1000, ease: 'easeInOut' }
               : isCoolingPhase ? { duration: 0.5, ease: 'easeOut' }
@@ -566,6 +681,7 @@ export default function App() {
               <AnimatePresence>
                 {appState === 'REEMERGENCE' && (
                   <motion.div 
+                    key="halo-prompt"
                     className="absolute inset-0 rounded-full border border-white/20"
                     initial={{ scale: 1, opacity: 0 }}
                     animate={{ scale: [1, 1.1, 1.2], opacity: [0, 0.5, 0] }}
@@ -576,6 +692,26 @@ export default function App() {
 
               {/* Deep Glowing Cores */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                {/* Audio Reactivity Glow */}
+                <AnimatePresence>
+                  {appState === 'RECORDING_VOICE' && (
+                    <motion.div
+                      className="absolute inset-0 flex items-center justify-center w-full h-full rounded-full mix-blend-screen"
+                      initial={{ opacity: 0, scale: 0.6 }}
+                      animate={{ 
+                        opacity: 0.3 + (audioLevel / 255) * 0.7,
+                        scale: 0.6 + (audioLevel / 255) * 0.8
+                      }}
+                      exit={{ opacity: 0, scale: 0.6 }}
+                      style={{
+                        background: 'radial-gradient(circle at 50% 50%, rgba(255,255,255,0.8) 0%, #d450ff 25%, #4a00e0 50%, transparent 75%)',
+                        filter: 'blur(15px)',
+                        willChange: 'transform, opacity'
+                      }}
+                      transition={{ type: "tween", duration: 0.05 }}
+                    />
+                  )}
+                </AnimatePresence>
                 {/* Amber/Rose Heart */}
                 <motion.div
                   className="absolute w-3/5 h-3/5 rounded-full mix-blend-screen"
@@ -589,7 +725,7 @@ export default function App() {
                   }}
                   animate={{
                     scale: appState === 'FOCUSED_INITIAL' ? 10 : (appState === 'RITUAL_HOLD' ? 6 : [1, 1.06, 1]),
-                    opacity: isCoolingPhase ? 0 : isHoldingPearl ? 1 : [0.75, 1, 0.75],
+                    opacity: isCoolingPhase ? 0.3 : isHoldingPearl ? 1 : [0.75, 1, 0.75],
                     rotate: [0, 60, 0],
                   }}
                   transition={{
@@ -609,7 +745,7 @@ export default function App() {
                   }}
                   animate={{
                     scale: appState === 'FOCUSED_INITIAL' ? 12 : (appState === 'RITUAL_HOLD' ? 8 : [1.05, 1, 1.05]),
-                    opacity: isCoolingPhase ? 0 : isHoldingPearl ? 0.8 : [0.6, 0.9, 0.6],
+                    opacity: isCoolingPhase ? 0.3 : isHoldingPearl ? 0.8 : [0.6, 0.9, 0.6],
                     rotate: appState === 'RITUAL_HOLD' ? [360, 0] : [360, 280, 360],
                   }}
                   transition={{
@@ -620,7 +756,7 @@ export default function App() {
                 />
               </div>
 
-              <div style={{ opacity: isCoolingPhase ? 0 : 1, transition: 'opacity 1s ease-out' }}>
+              <div style={{ opacity: isCoolingPhase ? 0.5 : 1, transition: 'opacity 1s ease-out' }}>
                 <NestedCoreFields isHolding={isHoldingPearl} isRitual={appState === 'RITUAL_HOLD'} />
               </div>
 

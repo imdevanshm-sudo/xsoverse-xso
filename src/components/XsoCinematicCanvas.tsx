@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform, animate } from 'motion/react';
-import { XsoAudioOrb } from './XsoAudioOrb';
+import { XsoAudioDeck } from './XsoAudioDeck';
 import { XsoVideoWindow } from './XsoVideoWindow';
 
 export interface MediaItem {
@@ -82,6 +82,7 @@ function PolaroidCard({ item, smoothRotX, smoothRotY, glareX, glareY, glareOpaci
       <AnimatePresence>
         {!hasRotated3D && (
           <motion.div 
+            key="drag-inspect-hint"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, transition: { duration: 0.8 } }}
@@ -103,6 +104,7 @@ export default function XsoCinematicCanvas({ auraWeight = [1, 1], masterAudioUrl
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const [isTouching, setIsTouching] = useState(false);
+  const [isZoomed, setIsZoomed] = useState(false);
 
   // --- Affordance States ---
   const [hasScrolledZ, setHasScrolledZ] = useState(false);
@@ -143,7 +145,7 @@ export default function XsoCinematicCanvas({ auraWeight = [1, 1], masterAudioUrl
     source.connect(gainNode);
     gainNode.connect(actx.destination);
 
-    masterAudio.play().catch(e => console.log("Master audio suspended until interaction:", e));
+    // masterAudio.play().catch(e => console.log("Master audio suspended until interaction:", e));
 
     const voiceAudio = new Audio();
     voiceAudio.crossOrigin = "anonymous";
@@ -198,9 +200,12 @@ export default function XsoCinematicCanvas({ auraWeight = [1, 1], masterAudioUrl
 
     if (audioUrlToPlay && voiceNoteRef.current) {
       voiceNoteRef.current.src = audioUrlToPlay;
+      // Prevent autoplaying voice note per user request
+      /*
       voiceNoteRef.current.play().catch(e => {
         console.warn('Voice note play blocked by autoplay. Will play on next tap.', e);
       });
+      */
 
       voiceNoteRef.current.onended = () => {
         if (actx && gainNode && !isVideo) {
@@ -295,6 +300,7 @@ export default function XsoCinematicCanvas({ auraWeight = [1, 1], masterAudioUrl
     panX.set(0);
     panY.set(0);
     zoomScale.set(1);
+    setIsZoomed(false);
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -308,12 +314,27 @@ export default function XsoCinematicCanvas({ auraWeight = [1, 1], masterAudioUrl
     if (activePointers.current.size === 1) {
       // Toggle Zoom for Image
       if (media[currentIndex].type === 'image' && now - pointerStartInfo.current.time < 300) {
-        if (zoomScale.get() > 1) {
+        if (isZoomed) {
+          setIsZoomed(false);
           zoomScale.set(1);
           panX.set(0);
           panY.set(0);
+          if (navigator.vibrate) navigator.vibrate([10]);
         } else {
-          zoomScale.set(2);
+          setIsZoomed(true);
+          // Calculate scale to perfectly fit screen
+          const isMobile = window.innerWidth < 768;
+          const cardBaseWidth = isMobile ? window.innerWidth * 0.85 : window.innerWidth * 0.45;
+          const cardBaseHeight = cardBaseWidth * (4/3); 
+          
+          const scaleToFillWidth = window.innerWidth / cardBaseWidth;
+          const scaleToFillHeight = window.innerHeight / cardBaseHeight;
+          const fitScale = Math.min(scaleToFillWidth, scaleToFillHeight) * 0.95; 
+
+          zoomScale.set(Math.max(1.5, fitScale));
+          panX.set(0);
+          panY.set(0);
+          if (navigator.vibrate) navigator.vibrate([15, 30]);
         }
       }
       pointerStartInfo.current = { x: e.clientX, y: e.clientY, time: now };
@@ -322,7 +343,7 @@ export default function XsoCinematicCanvas({ auraWeight = [1, 1], masterAudioUrl
 
     if (audioContextRef.current?.state === 'suspended') {
       audioContextRef.current.resume();
-      masterAudioRef.current?.play().catch(()=>{});
+      // masterAudioRef.current?.play().catch(()=>{});
     }
   };
 
@@ -380,7 +401,16 @@ export default function XsoCinematicCanvas({ auraWeight = [1, 1], masterAudioUrl
       if (zoomScale.get() > 1.2 && media[currentIndex].type === 'image') return;
 
       // Z-Axis Vertical Swipe
-      if ((Math.abs(yVel) > 400 || Math.abs(deltaY) > 150) && Math.abs(deltaY) > Math.abs(deltaX)) {
+      const isInteractiveMedia = media[currentIndex].type === 'audio' || media[currentIndex].type === 'video';
+      const velocityThreshold = isInteractiveMedia ? 1000 : 400;
+      const distanceThreshold = isInteractiveMedia ? 400 : 150;
+
+      if (
+        !isZoomed && 
+        zoomScale.get() <= 1.05 && 
+        (Math.abs(yVel) > velocityThreshold || Math.abs(deltaY) > distanceThreshold) && 
+        Math.abs(deltaY) > Math.abs(deltaX)
+      ) {
         const dir = deltaY < 0 ? 1 : -1;
         executeNavigate(dir);
       } else {
@@ -394,7 +424,7 @@ export default function XsoCinematicCanvas({ auraWeight = [1, 1], masterAudioUrl
   const lastWheelTime = useRef(0);
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     const now = Date.now();
-    if (now - lastWheelTime.current < 600) return; // scroll debounce
+    if (now - lastWheelTime.current < 600 || isZoomed || zoomScale.get() > 1.05) return; // scroll debounce
 
     if (Math.abs(e.deltaY) > 40) {
       const dir = e.deltaY > 0 ? 1 : -1;
@@ -440,6 +470,18 @@ export default function XsoCinematicCanvas({ auraWeight = [1, 1], masterAudioUrl
     >
       {/* Deep Space Ambiance */}
       <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(circle at center, transparent 0%, rgba(0,0,0,1) 80%)' }} />
+
+      {/* Global Screen Edge Lighting (Ambilight) */}
+      <motion.div 
+        className="fixed inset-0 pointer-events-none z-40 transition-shadow duration-1000"
+        style={{ 
+          boxShadow: media[currentIndex].type === 'video' 
+              ? 'inset 0 0 150px rgba(255, 180, 80, 0.15)' 
+              : media[currentIndex].type === 'audio' 
+                ? 'inset 0 0 150px rgba(100, 150, 255, 0.15)' 
+                : 'inset 0 0 150px rgba(255, 255, 255, 0)'
+        }} 
+      />
 
       <AnimatePresence initial={false} custom={direction} mode="popLayout">
         <motion.div
@@ -487,7 +529,7 @@ export default function XsoCinematicCanvas({ auraWeight = [1, 1], masterAudioUrl
             )}
 
             {media[currentIndex].type === 'audio' && (
-              <XsoAudioOrb 
+              <XsoAudioDeck 
                 src={media[currentIndex].url}
                 title={media[currentIndex].title}
                 duration={media[currentIndex].duration}
@@ -511,6 +553,7 @@ export default function XsoCinematicCanvas({ auraWeight = [1, 1], masterAudioUrl
       <AnimatePresence>
         {!hasScrolledZ && (
           <motion.div
+            key="pull-forward-hint"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1, y: [0, -5, 0] }}
             transition={{ 
