@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import XsoCinematicCanvas from './components/XsoCinematicCanvas';
 
@@ -161,6 +161,33 @@ export default function App() {
   const [appState, setAppState] = useState<AppState>('IDLE');
   const [shareEcho, setShareEcho] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
+
+  const stars = useMemo(() => Array.from({ length: 60 }).map((_, i) => (
+    <motion.div 
+      key={`star-${i}`} 
+      className="absolute rounded-full bg-white mix-blend-screen"
+      style={{ 
+        top: `${Math.random() * 100}%`, 
+        left: `${Math.random() * 100}%`, 
+        width: `${Math.random() * 3 + 1}px`, 
+        height: `${Math.random() * 3 + 1}px`,
+        filter: `blur(${Math.random() * 1.5 + 0.5}px)`,
+      }}
+      initial={{ 
+        opacity: Math.random() * 0.5 + 0.1,
+        y: 0
+      }}
+      animate={{ 
+        opacity: [null, Math.random() * 0.8 + 0.2, Math.random() * 0.5 + 0.1],
+        y: -Math.random() * 40 - 20 // move up very slowly by 20 to 60 px
+      }}
+      transition={{
+        duration: Math.random() * 10 + 10,
+        repeat: Infinity,
+        ease: "linear"
+      }}
+    />
+  )), []);
   
   const holdTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const ritualHapticIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -283,7 +310,9 @@ export default function App() {
           isComponentMounted = false;
           clearInterval(intervalId);
           if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-          if (audioContextRef.current) audioContextRef.current.close();
+          if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+            audioContextRef.current.close().catch(() => {});
+          }
           if (microphoneRef.current?.mediaStream) {
             microphoneRef.current.mediaStream.getTracks().forEach(track => track.stop());
           }
@@ -292,7 +321,9 @@ export default function App() {
         return () => {
           isComponentMounted = false;
           if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-          if (audioContextRef.current) audioContextRef.current.close();
+          if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+            audioContextRef.current.close().catch(() => {});
+          }
           if (microphoneRef.current?.mediaStream) {
             microphoneRef.current.mediaStream.getTracks().forEach(track => track.stop());
           }
@@ -301,7 +332,9 @@ export default function App() {
     } else {
       setAudioLevel(0);
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-      if (audioContextRef.current) audioContextRef.current.close();
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close().catch(() => {});
+      }
       if (microphoneRef.current?.mediaStream) {
         microphoneRef.current.mediaStream.getTracks().forEach(track => track.stop());
       }
@@ -366,7 +399,6 @@ export default function App() {
   };
 
   const handlePointerUp = (e?: React.SyntheticEvent) => {
-    if (e && e.stopPropagation) e.stopPropagation();
     pointerStateRef.current = { startY: 0, isDragging: false };
 
     if (holdTimeoutRef.current) {
@@ -437,19 +469,7 @@ export default function App() {
             exit={{ opacity: 0 }}
             transition={{ duration: 1.5 }}
           >
-            {Array.from({ length: 150 }).map((_, i) => (
-              <div 
-                key={`star-${i}`} 
-                className="absolute rounded-full bg-white"
-                style={{ 
-                  top: `${Math.random() * 100}%`, 
-                  left: `${Math.random() * 100}%`, 
-                  width: `${Math.random() * 2 + 0.5}px`, 
-                  height: `${Math.random() * 2 + 0.5}px`,
-                  opacity: Math.random() * 0.8 + 0.2
-                }} 
-              />
-            ))}
+            {stars}
           </motion.div>
         )}
       </AnimatePresence>
@@ -479,8 +499,8 @@ export default function App() {
             masterAudioUrl="https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg"
             media={[
               { id: '1', type: 'image', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&fit=crop', title: 'Summer in Kyoto - 2024', voiceNoteUrl: 'https://actions.google.com/sounds/v1/human_voices/human_voice_clip.ogg' },
-              { id: '2', type: 'audio', url: '/Easy on Me Now.mp3', title: 'Voice Note from Taylor', duration: '0:42' },
               { id: '3', type: 'video', url: '/video.mp4', title: 'Night Ride' },
+              { id: '2', type: 'audio', url: '/Easy on Me Now.mp3', title: 'Voice Note from Taylor', duration: '0:42' },
               { id: '4', type: 'image', url: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=800&fit=crop', title: 'The drive back home...', voiceNoteUrl: 'https://actions.google.com/sounds/v1/water/rain_on_roof.ogg' }
             ]}
             onComplete={() => setAppState('IDLE_DARK')}

@@ -23,50 +23,83 @@ export interface XsoCinematicCanvasProps {
 // SUB-COMPONENTS
 // --------------------------------------------------------
 
-function PolaroidCard({ item, smoothRotX, smoothRotY, glareX, glareY, glareOpacity, hasRotated3D }: any) {
+function PolaroidCard({ item, smoothRotX, smoothRotY, glareX, glareY, glareOpacity, hasRotated3D, isFullscreen }: any) {
   return (
-    <div className="relative w-[85vw] md:w-[45vw] aspect-[3/4] max-h-[80vh] pointer-events-auto cursor-grab active:cursor-grabbing">
+    <motion.div 
+      className={`relative ${isFullscreen ? 'w-full h-full' : 'w-[85vw] md:w-[45vw] aspect-[3/4] max-h-[80vh] cursor-grab active:cursor-grabbing'} pointer-events-auto`}
+      initial={false}
+      animate={{ padding: isFullscreen ? '0px' : '0px' }} // Let child handle padding
+      transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}
+    >
       <motion.div 
         className="absolute inset-0"
         style={{
-          rotateX: smoothRotX,
-          rotateY: smoothRotY,
+          rotateX: isFullscreen ? 0 : smoothRotX,
+          rotateY: isFullscreen ? 0 : smoothRotY,
           transformStyle: 'preserve-3d',
         }}
       >
         <div className="absolute inset-0 rounded-xl overflow-visible" style={{ transformStyle: 'preserve-3d' }}>
           
           {/* FRONT FACE */}
-          <div 
-            className="absolute inset-0 bg-[#F3F4F6] rounded-xl shadow-[0_30px_60px_-10px_rgba(0,0,0,0.9),0_0_20px_rgba(255,255,255,0.05)] border border-white/40 p-3 pb-16 md:p-5 md:pb-20 flex flex-col transform-gpu"
+          <motion.div 
+            className="absolute inset-0 flex flex-col transform-gpu"
+            initial={false}
+            animate={{
+              backgroundColor: isFullscreen ? 'rgba(0,0,0,0)' : '#F3F4F6',
+              boxShadow: isFullscreen ? 'none' : '0 30px 60px -10px rgba(0,0,0,0.9), 0 0 20px rgba(255,255,255,0.05)',
+              borderWidth: isFullscreen ? '0px' : '1px',
+              borderColor: 'rgba(255,255,255,0.4)',
+              padding: isFullscreen ? '0px' : '1.25rem',
+              paddingBottom: isFullscreen ? '0px' : '5rem'
+            }}
+            transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}
             style={{ backfaceVisibility: 'hidden', transform: 'translateZ(1px)' }}
           >
-            <div className="w-full flex-1 relative rounded-md overflow-hidden bg-black shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)]">
+            <motion.div 
+               className="w-full h-full relative rounded-md overflow-hidden bg-black flex-1"
+               animate={{
+                 boxShadow: isFullscreen ? 'none' : 'inset 0 2px 10px rgba(0,0,0,0.5)',
+                 borderRadius: isFullscreen ? '0px' : '0.375rem'
+               }}
+               transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}
+            >
               <img 
                 src={item.url} 
                 alt="Memory"
-                className="w-full h-full object-cover absolute inset-0"
+                className={`w-full h-full absolute inset-0 ${isFullscreen ? 'object-contain' : 'object-cover'}`}
                 draggable={false}
               />
               {/* Dynamic Glossy Glare */}
-              <motion.div 
-                className="absolute inset-0 pointer-events-none mix-blend-overlay"
-                style={{
-                  background: 'linear-gradient(135deg, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0) 100%)',
-                  x: glareX,
-                  y: glareY,
-                  opacity: glareOpacity,
-                }}
-              />
-            </div>
+              {!isFullscreen && (
+                <motion.div 
+                  className="absolute inset-0 pointer-events-none mix-blend-overlay border border-white/10"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0) 100%)',
+                    x: glareX,
+                    y: glareY,
+                    opacity: glareOpacity,
+                  }}
+                />
+              )}
+            </motion.div>
             
             {/* Polaroid Description Text */}
-            <div className="h-10 md:h-12 mt-3 md:mt-4 flex items-center justify-center shrink-0 px-2 overflow-hidden">
-              <p className="text-gray-800 font-serif italic text-sm md:text-base text-center line-clamp-2 leading-tight opacity-80 select-none">
-                {item.title || "A fragmented memory..."}
-              </p>
-            </div>
-          </div>
+            <AnimatePresence>
+              {!isFullscreen && (
+                <motion.div 
+                   initial={{ opacity: 0, height: 0 }}
+                   animate={{ opacity: 1, height: 'auto' }}
+                   exit={{ opacity: 0, height: 0 }}
+                   className="mt-3 md:mt-4 flex items-center justify-center shrink-0 px-2 overflow-hidden"
+                >
+                  <p className="text-gray-800 font-serif italic text-sm md:text-base text-center line-clamp-2 leading-tight opacity-80 select-none py-1">
+                    {item.title || "A fragmented memory..."}
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
 
           {/* BACK FACE */}
           <div 
@@ -92,7 +125,7 @@ function PolaroidCard({ item, smoothRotX, smoothRotY, glareX, glareY, glareOpaci
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }
 
@@ -104,7 +137,7 @@ export default function XsoCinematicCanvas({ auraWeight = [1, 1], masterAudioUrl
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const [isTouching, setIsTouching] = useState(false);
-  const [isZoomed, setIsZoomed] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // --- Affordance States ---
   const [hasScrolledZ, setHasScrolledZ] = useState(false);
@@ -300,7 +333,7 @@ export default function XsoCinematicCanvas({ auraWeight = [1, 1], masterAudioUrl
     panX.set(0);
     panY.set(0);
     zoomScale.set(1);
-    setIsZoomed(false);
+    setIsFullscreen(false);
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -312,29 +345,20 @@ export default function XsoCinematicCanvas({ auraWeight = [1, 1], masterAudioUrl
     
     const now = Date.now();
     if (activePointers.current.size === 1) {
-      // Toggle Zoom for Image
+      // Toggle Fullscreen for Image
       if (media[currentIndex].type === 'image' && now - pointerStartInfo.current.time < 300) {
-        if (isZoomed) {
-          setIsZoomed(false);
+        if (isFullscreen) {
+          setIsFullscreen(false);
           zoomScale.set(1);
           panX.set(0);
           panY.set(0);
           if (navigator.vibrate) navigator.vibrate([10]);
         } else {
-          setIsZoomed(true);
-          // Calculate scale to perfectly fit screen
-          const isMobile = window.innerWidth < 768;
-          const cardBaseWidth = isMobile ? window.innerWidth * 0.85 : window.innerWidth * 0.45;
-          const cardBaseHeight = cardBaseWidth * (4/3); 
-          
-          const scaleToFillWidth = window.innerWidth / cardBaseWidth;
-          const scaleToFillHeight = window.innerHeight / cardBaseHeight;
-          const fitScale = Math.min(scaleToFillWidth, scaleToFillHeight) * 0.95; 
-
-          zoomScale.set(Math.max(1.5, fitScale));
+          setIsFullscreen(true);
+          zoomScale.set(1);
           panX.set(0);
           panY.set(0);
-          if (navigator.vibrate) navigator.vibrate([15, 30]);
+          if (navigator.vibrate) navigator.vibrate([15, 30]); // Clunk
         }
       }
       pointerStartInfo.current = { x: e.clientX, y: e.clientY, time: now };
@@ -406,7 +430,7 @@ export default function XsoCinematicCanvas({ auraWeight = [1, 1], masterAudioUrl
       const distanceThreshold = isInteractiveMedia ? 400 : 150;
 
       if (
-        !isZoomed && 
+        !isFullscreen && 
         zoomScale.get() <= 1.05 && 
         (Math.abs(yVel) > velocityThreshold || Math.abs(deltaY) > distanceThreshold) && 
         Math.abs(deltaY) > Math.abs(deltaX)
@@ -424,7 +448,7 @@ export default function XsoCinematicCanvas({ auraWeight = [1, 1], masterAudioUrl
   const lastWheelTime = useRef(0);
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     const now = Date.now();
-    if (now - lastWheelTime.current < 600 || isZoomed || zoomScale.get() > 1.05) return; // scroll debounce
+    if (now - lastWheelTime.current < 600 || isFullscreen || zoomScale.get() > 1.05) return; // scroll debounce
 
     if (Math.abs(e.deltaY) > 40) {
       const dir = e.deltaY > 0 ? 1 : -1;
@@ -479,7 +503,7 @@ export default function XsoCinematicCanvas({ auraWeight = [1, 1], masterAudioUrl
               ? 'inset 0 0 150px rgba(255, 180, 80, 0.15)' 
               : media[currentIndex].type === 'audio' 
                 ? 'inset 0 0 150px rgba(100, 150, 255, 0.15)' 
-                : 'inset 0 0 150px rgba(255, 255, 255, 0)'
+                : 'inset 0 0 150px rgba(255, 255, 255, 0.05)'
         }} 
       />
 
@@ -507,7 +531,7 @@ export default function XsoCinematicCanvas({ auraWeight = [1, 1], masterAudioUrl
               scale: totalScale,
               transformStyle: 'preserve-3d',
             }}
-            className="flex items-center justify-center relative pointer-events-none"
+            className="flex items-center justify-center relative pointer-events-none w-full h-full"
           >
             {media[currentIndex].type === 'image' && (
               <PolaroidCard 
@@ -518,6 +542,7 @@ export default function XsoCinematicCanvas({ auraWeight = [1, 1], masterAudioUrl
                 glareY={glareY}
                 glareOpacity={glareOpacity}
                 hasRotated3D={hasRotated3D}
+                isFullscreen={isFullscreen}
               />
             )}
             

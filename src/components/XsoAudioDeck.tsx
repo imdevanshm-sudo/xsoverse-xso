@@ -153,22 +153,22 @@ export function XsoAudioDeck({ src, title, duration, onPlayStart, onPlayStop }: 
 
 
   const handleDragStart = () => {
-      if (isLoaded) return;
       setIsDragging(true);
-      setHasStartedDragging(true);
+      if (!isLoaded) {
+        setHasStartedDragging(true);
+      }
   };
 
   const handleDrag = (event: any, info: any) => {
-      if (isLoaded) return;
       // Removed vibration during drag for smoother performance
   };
 
-  const handleDragEnd = async (event: any, info: any) => {
+  const handleDragEnd = (event: any, info: any) => {
     setIsDragging(false);
 
     if (isLoaded) {
        // Check if pulled down significantly to eject
-       if (info.offset.y > 50 || info.velocity.y > 200) {
+       if (info.offset.y > 20 || info.velocity.y > 50) {
            handleEject();
        } else {
            // Snap back to slot
@@ -179,13 +179,11 @@ export function XsoAudioDeck({ src, title, duration, onPlayStart, onPlayStop }: 
 
     if (deckRef.current) {
         const deckRect = deckRef.current.getBoundingClientRect();
-        const artifactX = info.point.x;
         const artifactY = info.point.y;
 
-        // Make target hit area much more forgiving so it can be slotted in one go easily
-        const isInside = 
-            artifactY < deckRect.bottom + 150; // Just check if they swiped it upward enough
-
+        // Extremely forgiving hit area and swipe check
+        const isSwipeUp = info.offset.y < -5 || info.velocity.y < -20;
+        const isInside = isSwipeUp || artifactY < deckRect.bottom + 200;
 
         if (isInside) {
            handleLoad();
@@ -193,14 +191,16 @@ export function XsoAudioDeck({ src, title, duration, onPlayStart, onPlayStop }: 
            artifactControls.start({
                x: 0,
                y: 240,
-               transition: { type: 'spring', stiffness: 200, damping: 25 }
+               scale: 1,
+               transition: { type: 'spring', stiffness: 500, damping: 30 }
            });
         }
     } else {
         artifactControls.start({
             x: 0,
             y: 240,
-            transition: { type: 'spring', stiffness: 200, damping: 25 }
+            scale: 1,
+            transition: { type: 'spring', stiffness: 500, damping: 30 }
         });
     }
   };
@@ -225,7 +225,7 @@ export function XsoAudioDeck({ src, title, duration, onPlayStart, onPlayStop }: 
     stopLoop();
   };
 
-  const handleEject = async () => {
+  const handleEject = () => {
       if (navigator.vibrate) navigator.vibrate([20, 10, 30]); // Eject clunk
       setIsLoaded(false);
       setIsPlaying(false);
@@ -235,24 +235,24 @@ export function XsoAudioDeck({ src, title, duration, onPlayStart, onPlayStop }: 
       stopLoop();
 
       // Animate artifact down
-      await artifactControls.start({
+      artifactControls.start({
           x: 0,
           y: 240, 
           scale: 1,
-          transition: { type: 'spring', stiffness: 200, damping: 25 }
+          transition: { type: 'tween', duration: 0.3, ease: 'backOut' }
       });
   };
 
-  const handleLoad = async () => {
+  const handleLoad = () => {
       if (navigator.vibrate) navigator.vibrate([40, 20, 50]); // Satisfying mechanical clunk
       setIsLoaded(true);
       
       // Animate artifact into the center slot
-      await artifactControls.start({
+      artifactControls.start({
           x: 0,
           y: 60, // Slot down
           scale: 0.9,
-          transition: { type: 'spring', stiffness: 300, damping: 20 }
+          transition: { type: 'tween', duration: 0.25, ease: 'backOut' }
       });
 
       initAudio();
@@ -336,22 +336,21 @@ export function XsoAudioDeck({ src, title, duration, onPlayStart, onPlayStop }: 
           <motion.div
             drag="y"
             onPointerDown={(e) => { e.stopPropagation(); }}
-            onPointerMove={(e) => { e.stopPropagation(); }}
-            onPointerUp={(e) => { e.stopPropagation(); }}
-            onPointerCancel={(e) => { e.stopPropagation(); }}
             dragSnapToOrigin={false}
-            dragConstraints={isLoaded ? { top: 60, bottom: 250 } : undefined}
+            dragMomentum={false}
+            dragConstraints={{ top: 60, bottom: 240 }}
             onDragStart={handleDragStart}
             onDrag={handleDrag}
             onDragEnd={handleDragEnd}
             animate={artifactControls}
             initial={{ y: 240, x: 0 }}
-            dragElastic={0.4}
+            dragElastic={0.2}
             dragTransition={{ bounceStiffness: 400, bounceDamping: 25 }}
             className={`w-[220px] h-[140px] rounded-xl flex items-center justify-between px-6 shadow-[0_20px_50px_rgba(0,0,0,0.6),inset_0_1px_1px_rgba(255,255,255,0.4)] border border-white/20 backdrop-blur-md overflow-hidden relative ${!isLoaded ? 'cursor-grab active:cursor-grabbing' : 'cursor-grab active:cursor-grabbing'}`}
             style={{ 
                 background: 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(200,200,200,0.05) 50%, rgba(50,50,50,0.2) 100%)',
-                zIndex: isDragging ? 50 : 20
+                zIndex: 50,
+                willChange: 'transform'
             }}
           >
              {/* Cassette Label */}

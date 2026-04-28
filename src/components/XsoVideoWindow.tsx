@@ -141,20 +141,20 @@ export function XsoVideoWindow({ src, title }: XsoVideoWindowProps) {
   };
 
   return (
-    <div className="relative w-full h-[80vh] flex flex-col items-center justify-center pointer-events-auto" ref={containerRef}>
+    <div className="relative w-full h-[85vh] flex flex-col items-center justify-center pointer-events-auto" ref={containerRef}>
        
        <motion.div 
-          className="relative w-[85vw] md:w-[60vw] max-h-[70vh] aspect-video flex-shrink-0"
+          className="relative w-[90vw] md:w-[75vw] max-h-[75vh] aspect-video flex-shrink-0"
           style={{ x: smoothTiltX, y: smoothTiltY }}
        >
           {/* Main Container */}
-          <div className="relative z-10 w-full h-full rounded-xl md:rounded-2xl border border-white/10 shadow-[0_30px_60px_-10px_rgba(0,0,0,0.9)] bg-black overflow-hidden">
+          <div className="relative z-10 w-full h-full rounded-2xl border border-white/10 shadow-[0_30px_60px_-10px_rgba(0,0,0,0.9)] bg-black overflow-hidden">
               
              {/* Base Video */}
              <video 
                  ref={mainVideoRef}
                  src={src}
-                 className="absolute inset-0 z-0 w-full h-full object-cover rounded-xl md:rounded-2xl"
+                 className="absolute inset-0 z-0 w-full h-full object-cover bg-black"
                  loop
                  playsInline
                  // NO AUTO PLAY
