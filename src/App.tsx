@@ -499,10 +499,10 @@ export default function App() {
             auraWeight={[1, 1]}
             masterAudioUrl="https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg"
             media={[
-              { id: '1', type: 'image', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&fit=crop', title: 'Summer in Kyoto - 2024', voiceNoteUrl: 'https://actions.google.com/sounds/v1/human_voices/human_voice_clip.ogg' },
+              { id: '1', type: 'image', url: 'https://picsum.photos/seed/kyoto/800/800', title: 'Summer in Kyoto - 2024', voiceNoteUrl: 'https://actions.google.com/sounds/v1/human_voices/human_voice_clip.ogg' },
               { id: '3', type: 'video', url: '/video.mp4', title: 'Night Ride' },
               { id: '2', type: 'audio', url: '/Easy on Me Now.mp3', title: 'Voice Note from Taylor', duration: '0:42' },
-              { id: '4', type: 'image', url: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=800&fit=crop', title: 'The drive back home...', voiceNoteUrl: 'https://actions.google.com/sounds/v1/water/rain_on_roof.ogg' }
+              { id: '4', type: 'image', url: 'https://picsum.photos/seed/drive/800/800', title: 'The drive back home...', voiceNoteUrl: 'https://actions.google.com/sounds/v1/water/rain_on_roof.ogg' }
             ]}
             onComplete={() => setAppState('IDLE_DARK')}
           />
