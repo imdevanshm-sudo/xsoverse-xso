@@ -1,7 +1,6 @@
-import React, { useEffect, useRef, useState, useMemo, Suspense } from 'react';
+import React, { useEffect, useRef, useState, useMemo, Suspense, useLayoutEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Environment, PerspectiveCamera, RoundedBox, Html, useTexture, useVideoTexture, Image } from '@react-three/drei';
-import { EffectComposer, Bloom, ChromaticAberration, Noise } from '@react-three/postprocessing';
 import * as THREE from 'three';
 
 export interface MediaItem {
@@ -9,14 +8,18 @@ export interface MediaItem {
   type: 'image' | 'video' | 'audio';
   url: string;
   title?: string;
+  duration?: string;
+  voiceNoteUrl?: string;
 }
 
 export interface XsoReceiverSanctumProps {
   masterAudioUrl: string;
   media: MediaItem[];
+  auraWeight?: number[];
   onComplete?: () => void;
 }
 
+// 4K Symbolic Aesthetic Textures
 const xsoAesthetics: Record<number, string[]> = {
   1: ['/aesthetic-heart.jpg', '/aesthetic-rainbow.jpg'],
   2: ['/aesthetic-moon.jpg', '/aesthetic-star.jpg'],
@@ -29,22 +32,26 @@ const xsoAesthetics: Record<number, string[]> = {
   9: ['/aesthetic-crown.jpg', '/aesthetic-sword.jpg']
 };
 
-function AudioReactiveSymphony({ audioRef }: { audioRef: React.MutableRefObject<HTMLAudioElement | null> }) {
+// ==========================================
+// THE CINEMATIC SYMPHONY (3 INSTRUMENTS)
+// ==========================================
+
+function PianoMonoliths({ analyserRef, dataArrayRef }: any) {
+  const count = 12;
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const materialRef = useRef<THREE.MeshPhysicalMaterial>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const dataArrayRef = useRef<Uint8Array | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
-  
   const dummy = useMemo(() => new THREE.Object3D(), []);
-  const count = 32;
   
   useEffect(() => {
     if (meshRef.current) {
         for(let i = 0; i < count; i++) {
-            const offset = i - (count - 1) / 2;
-            dummy.position.set(offset * 0.8, -5, -Math.abs(offset) * 0.5);
+            const angle = (i / (count - 1)) * (Math.PI * 0.6) - (Math.PI * 0.3);
+            const radius = 14;
+            const x = Math.sin(angle) * radius;
+            const z = -8 - Math.cos(angle) * 4;
+            
+            dummy.position.set(x, -6, z);
+            dummy.rotation.y = angle; 
             dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
             meshRef.current.setMatrixAt(i, dummy.matrix);
@@ -54,113 +61,214 @@ function AudioReactiveSymphony({ audioRef }: { audioRef: React.MutableRefObject<
   }, [count, dummy]);
 
   useFrame((_, delta) => {
-    if (!audioRef.current || audioRef.current.paused || audioRef.current.currentTime === 0) {
-        if (meshRef.current) {
-            for(let i = 0; i < count; i++) {
-                meshRef.current.getMatrixAt(i, dummy.matrix);
-                dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
-                dummy.scale.y = THREE.MathUtils.lerp(dummy.scale.y, 1, delta * 2);
-                dummy.position.y = -5 + dummy.scale.y / 2;
-                dummy.updateMatrix();
-                meshRef.current.setMatrixAt(i, dummy.matrix);
-            }
-            meshRef.current.instanceMatrix.needsUpdate = true;
-        }
-        if (materialRef.current) {
-            materialRef.current.emissiveIntensity = THREE.MathUtils.lerp(materialRef.current.emissiveIntensity, 0, delta * 2);
-        }
-        return;
+    if (!analyserRef.current || !dataArrayRef.current || !meshRef.current) return;
+    
+    let sum = 0;
+    for(let i=0; i<12; i++) sum += dataArrayRef.current[i];
+    const bassAvg = (sum / 12) / 255;
+    
+    for(let i = 0; i < count; i++) {
+        const val = dataArrayRef.current[i % 12] / 255;
+        const targetScaleY = 1 + val * 2.5; 
+        
+        meshRef.current.getMatrixAt(i, dummy.matrix);
+        dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
+        dummy.scale.y = THREE.MathUtils.lerp(dummy.scale.y, targetScaleY, delta * 10);
+        dummy.position.y = -6 + (dummy.scale.y * 3) / 2; 
+        dummy.updateMatrix();
+        meshRef.current.setMatrixAt(i, dummy.matrix);
     }
-
-    if (!audioContextRef.current) {
-         try {
-            const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-            if (AudioContext) {
-                audioContextRef.current = new AudioContext();
-            }
-            if (audioContextRef.current) {
-                analyserRef.current = audioContextRef.current.createAnalyser();
-                analyserRef.current.fftSize = 128;
-                dataArrayRef.current = new Uint8Array(analyserRef.current.frequencyBinCount);
-                
-                sourceRef.current = audioContextRef.current.createMediaElementSource(audioRef.current);
-                sourceRef.current.connect(analyserRef.current);
-                analyserRef.current.connect(audioContextRef.current.destination);
-                
-                if (audioContextRef.current.state === 'suspended') {
-                     audioContextRef.current.resume();
-                }
-            }
-         } catch(e) {
-            console.warn("AudioContext setup failed or already connected");
-         }
-    }
-
-    if (analyserRef.current && dataArrayRef.current) {
-      analyserRef.current.getByteFrequencyData(dataArrayRef.current);
-      
-      let sum = 0;
-      for(let i=0; i<10; i++) sum += dataArrayRef.current[i];
-      const avgStr = (sum / 10) / 255;
-      
-      if (meshRef.current) {
-          for(let i = 0; i < count; i++) {
-              const val = dataArrayRef.current[i % (dataArrayRef.current.length / 2)] / 255;
-              const targetScale = 1 + val * 6;
-              
-              meshRef.current.getMatrixAt(i, dummy.matrix);
-              dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
-              dummy.scale.y = THREE.MathUtils.lerp(dummy.scale.y, targetScale, delta * 15);
-              dummy.position.y = -5 + dummy.scale.y / 2;
-              dummy.updateMatrix();
-              meshRef.current.setMatrixAt(i, dummy.matrix);
-          }
-          meshRef.current.instanceMatrix.needsUpdate = true;
-      }
-      if (materialRef.current) {
-          materialRef.current.emissiveIntensity = THREE.MathUtils.lerp(materialRef.current.emissiveIntensity, avgStr * 2, delta * 10);
-      }
+    meshRef.current.instanceMatrix.needsUpdate = true;
+    
+    if (materialRef.current) {
+        materialRef.current.emissiveIntensity = THREE.MathUtils.lerp(materialRef.current.emissiveIntensity, bassAvg * 1.5, delta * 8);
     }
   });
 
   return (
-    <group position={[0, -2, -10]}>
-       <pointLight position={[0, 5, 0]} intensity={2} color="#ffffff" />
-       <instancedMesh ref={meshRef} args={[undefined, undefined, count]} castShadow receiveShadow>
-           <boxGeometry args={[0.7, 1, 0.7]} />
-           <meshPhysicalMaterial 
-               ref={materialRef} 
-               color="#333333" 
-               transmission={0.9} 
-               opacity={1} 
-               transparent 
-               roughness={0.2} 
-               metalness={0.5} 
-               emissive="#000000" 
-           />
-       </instancedMesh>
+    <instancedMesh ref={meshRef} args={[undefined, undefined, count]}>
+        <boxGeometry args={[0.3, 3, 0.3]} />
+        <meshPhysicalMaterial 
+            ref={materialRef} 
+            color="#050505" 
+            transmission={0.9} 
+            opacity={1} 
+            transparent 
+            roughness={0.1} 
+            metalness={0.8} 
+            ior={1.5}
+            emissive="#ffffff" 
+            emissiveIntensity={0}
+        />
+    </instancedMesh>
+  );
+}
+
+function GuitarRings({ analyserRef, dataArrayRef }: any) {
+  const count = 3;
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  
+  useEffect(() => {
+    if (meshRef.current) {
+        for(let i = 0; i < count; i++) {
+            dummy.position.set(0, 0, -15 - i * 2);
+            dummy.scale.set(1, 1, 1);
+            dummy.updateMatrix();
+            meshRef.current.setMatrixAt(i, dummy.matrix);
+        }
+        meshRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [count, dummy]);
+
+  useFrame((_, delta) => {
+    if (!analyserRef.current || !dataArrayRef.current || !meshRef.current) return;
+    
+    let sum = 0;
+    for(let i=12; i<40; i++) sum += dataArrayRef.current[i];
+    const midAvg = (sum / 28) / 255;
+    
+    for(let i = 0; i < count; i++) {
+        meshRef.current.getMatrixAt(i, dummy.matrix);
+        dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
+        
+        const targetScale = 1 + (midAvg * (i + 1) * 1.5);
+        dummy.scale.setScalar(THREE.MathUtils.lerp(dummy.scale.x, targetScale, delta * 5));
+        
+        dummy.updateMatrix();
+        meshRef.current.setMatrixAt(i, dummy.matrix);
+    }
+    meshRef.current.instanceMatrix.needsUpdate = true;
+  });
+
+  return (
+    <instancedMesh ref={meshRef} args={[undefined, undefined, count]}>
+        <torusGeometry args={[4, 0.02, 16, 100]} />
+        <meshBasicMaterial 
+            color="#88ccff" 
+            transparent 
+            opacity={0.3} 
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+        />
+    </instancedMesh>
+  );
+}
+
+function HarpStrings({ analyserRef, dataArrayRef }: any) {
+  const count = 20;
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  
+  useEffect(() => {
+    if (meshRef.current) {
+        for(let i = 0; i < count; i++) {
+            const x = (i - count/2) * 0.8;
+            dummy.position.set(x, 4, -12);
+            dummy.scale.set(1, 1, 1);
+            dummy.updateMatrix();
+            meshRef.current.setMatrixAt(i, dummy.matrix);
+        }
+        meshRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [count, dummy]);
+
+  useFrame((state, delta) => {
+    if (!analyserRef.current || !dataArrayRef.current || !meshRef.current) return;
+    
+    let sum = 0;
+    for(let i=80; i<120; i++) sum += dataArrayRef.current[i];
+    const trebleAvg = (sum / 40) / 255;
+    
+    for(let i = 0; i < count; i++) {
+        const val = dataArrayRef.current[80 + i] / 255;
+        meshRef.current.getMatrixAt(i, dummy.matrix);
+        dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
+        
+        const targetX = ((i - count/2) * 0.8) + (Math.sin(state.clock.elapsedTime * 10 + i) * val * 0.2);
+        dummy.position.x = THREE.MathUtils.lerp(dummy.position.x, targetX, delta * 15);
+        
+        dummy.updateMatrix();
+        meshRef.current.setMatrixAt(i, dummy.matrix);
+    }
+    meshRef.current.instanceMatrix.needsUpdate = true;
+    
+    if (materialRef.current) {
+        materialRef.current.color.setHSL(0.1, 0.8, THREE.MathUtils.lerp(0.1, 0.8, trebleAvg));
+        materialRef.current.opacity = THREE.MathUtils.lerp(0.1, 0.8, trebleAvg);
+    }
+  });
+
+  return (
+    <instancedMesh ref={meshRef} args={[undefined, undefined, count]}>
+        <cylinderGeometry args={[0.015, 0.015, 12, 8]} />
+        <meshBasicMaterial 
+            ref={materialRef}
+            color="#ffcc88" 
+            transparent 
+            opacity={0.2}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+        />
+    </instancedMesh>
+  );
+}
+
+function AudioReactiveSymphony({ 
+  audioRef, 
+  analyserRef, 
+  dataArrayRef 
+}: { 
+  audioRef: React.MutableRefObject<HTMLAudioElement | null>,
+  analyserRef: React.MutableRefObject<AnalyserNode | null>,
+  dataArrayRef: React.MutableRefObject<Uint8Array | null>
+}) {
+  
+  useFrame(() => {
+    if (audioRef.current && !audioRef.current.paused && analyserRef.current && dataArrayRef.current) {
+        analyserRef.current.getByteFrequencyData(dataArrayRef.current);
+    } else if (dataArrayRef.current) {
+        dataArrayRef.current.fill(0);
+    }
+  });
+
+  return (
+    <group position={[0, -1, -5]}>
+       <pointLight position={[-8, 2, -10]} intensity={1.5} color="#5533ff" distance={25} />
+       <pointLight position={[8, 4, -10]} intensity={1.5} color="#ff3388" distance={25} />
+
+       <PianoMonoliths analyserRef={analyserRef} dataArrayRef={dataArrayRef} />
+       <GuitarRings analyserRef={analyserRef} dataArrayRef={dataArrayRef} />
+       <HarpStrings analyserRef={analyserRef} dataArrayRef={dataArrayRef} />
     </group>
   );
 }
 
+// ==========================================
+// SCENE CONTROLLERS & POLAROID
+// ==========================================
+
 function VibeController({ vibe, bgTexture, blurBg }: { vibe: 'VOID' | 'LOCATION', bgTexture: string | null, blurBg: boolean }) {
     const { scene } = useThree();
     
-    useFrame(() => {
+    useEffect(() => {
         if (vibe === 'VOID') {
             scene.background = new THREE.Color('#020104');
-            scene.fog = new THREE.Fog('#020104', 10, 50) as any;
-        } else if (vibe === 'LOCATION') {
+            scene.fog = new THREE.Fog('#020104', 10, 35); 
+        } else {
             scene.background = new THREE.Color('#ffffff');
-            scene.fog = new THREE.Fog('#ffffff', 10, 50) as any;
+            scene.fog = new THREE.Fog('#ffffff', 10, 50);
         }
-    });
+    }, [vibe, scene]);
 
     if (vibe === 'LOCATION' && bgTexture) {
          return (
              <group>
                   <ambientLight intensity={1.5} />
-                  <Image url={bgTexture} position={[0, 0, -50]} scale={[100, 100]} transparent opacity={blurBg ? 0.7 : 1} />
+                  <Suspense fallback={null}>
+                      <Image url={bgTexture} position={[0, 0, -40]} scale={[100, 100]} transparent opacity={blurBg ? 0.4 : 1} />
+                  </Suspense>
              </group>
          );
     }
@@ -168,79 +276,117 @@ function VibeController({ vibe, bgTexture, blurBg }: { vibe: 'VOID' | 'LOCATION'
     return null;
 }
 
-function VideoMaterial({ url, pmremEnvMap }: { url: string, pmremEnvMap: THREE.Texture | null }) {
+// The Base Photo Layers (Acts like Matte Paper)
+function VideoMaterial({ url }: { url: string }) {
     const texture = useVideoTexture(url, { crossOrigin: 'Anonymous', muted: true, loop: true, playsInline: true });
     if (texture) texture.colorSpace = THREE.SRGBColorSpace;
-    return <meshPhysicalMaterial map={texture} color="#ffffff" clearcoat={1} roughness={0.15} metalness={0.8} envMap={pmremEnvMap} envMapIntensity={0.6} />;
+    return <meshStandardMaterial map={texture} roughness={0.9} metalness={0.1} />;
 }
 
-function ImageMaterial({ url, pmremEnvMap }: { url: string, pmremEnvMap: THREE.Texture | null }) {
+function ImageMaterial({ url }: { url: string }) {
     const texture = useTexture(url);
     if (texture) texture.colorSpace = THREE.SRGBColorSpace;
-    return <meshPhysicalMaterial map={texture} color="#ffffff" clearcoat={1} roughness={0.15} metalness={0.8} envMap={pmremEnvMap} envMapIntensity={0.6} />;
+    return <meshStandardMaterial map={texture} roughness={0.9} metalness={0.1} />;
 }
 
-function AudioMaterial({ pmremEnvMap }: { pmremEnvMap: THREE.Texture | null }) {
-    return <meshPhysicalMaterial color="#222222" clearcoat={1} roughness={0.15} metalness={0.9} envMap={pmremEnvMap} envMapIntensity={0.8} />;
-}
-
-function PolaroidSlab({ item, position, aesthetic, variant }: { item: MediaItem, position: [number, number, number], aesthetic: number, variant: number }) {
+function PolaroidSlab({ item, position, aesthetic, variant, vibe }: { item: MediaItem, position: [number, number, number], aesthetic: number, variant: number, vibe: 'VOID' | 'LOCATION' }) {
   const groupRef = useRef<THREE.Group>(null);
   
   const envMapPaths = xsoAesthetics[aesthetic] || xsoAesthetics[1];
   const envMapPath = envMapPaths[variant] || envMapPaths[0];
 
-  const { gl } = useThree();
-  const rawEnvTexture = useTexture(envMapPath);
-  const [pmremEnvMap, setPmremEnvMap] = useState<THREE.Texture | null>(null);
+  const aestheticTexture = useTexture(envMapPath);
 
-  useEffect(() => {
-     if (rawEnvTexture) {
-         try {
-             // Let texture initialize properly
-             rawEnvTexture.colorSpace = THREE.SRGBColorSpace;
-             const generator = new THREE.PMREMGenerator(gl);
-             generator.compileEquirectangularShader();
-             const rt = generator.fromEquirectangular(rawEnvTexture);
-             generator.dispose();
-             setPmremEnvMap(rt.texture);
-             return () => {
-                 rt.dispose();
-             }
-         } catch(e) {
-             rawEnvTexture.mapping = THREE.EquirectangularReflectionMapping;
-             setPmremEnvMap(rawEnvTexture);
-         }
+  useLayoutEffect(() => {
+     if (aestheticTexture) {
+         aestheticTexture.mapping = THREE.EquirectangularReflectionMapping;
+         aestheticTexture.colorSpace = THREE.SRGBColorSpace;
+         aestheticTexture.needsUpdate = true;
      }
-  }, [rawEnvTexture, gl]);
+  }, [aestheticTexture]);
 
   useFrame((state) => {
      if (groupRef.current) {
-         groupRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime + position[2]) * 0.2;
+         groupRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 0.5 + position[2]) * 0.15;
+         groupRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.2) * 0.05;
      }
   });
 
   return (
     <group ref={groupRef} position={position}>
+       {/* Polaroid Frame - Sleek Dark Grey (#2a2a2a) to stand out against the void */}
        <RoundedBox args={[3.2, 4.2, 0.2]} radius={0.05} position={[0, 0, 0]}>
-           <meshStandardMaterial color="#111111" roughness={0.8} />
+           <meshStandardMaterial color="#2a2a2a" roughness={0.4} metalness={0.3} />
        </RoundedBox>
        
+       {/* Dedicated light just for this Polaroid to highlight the glossy clearcoat */}
+       <pointLight position={[0, 3, 4]} intensity={2.5} color="#ffffff" distance={15} decay={2} />
+       
+       {/* LAYER 1: Actual Photo Face (Matte Base) */}
        <mesh position={[0, 0, 0.101]}>
            <planeGeometry args={[3.0, 4.0]} />
-           {item.type === 'video' ? (
-               <VideoMaterial url={item.url || ''} pmremEnvMap={pmremEnvMap} />
+           {item.type === 'video' && item.url ? (
+               <VideoMaterial url={item.url} />
            ) : item.type === 'audio' ? (
-               <AudioMaterial pmremEnvMap={pmremEnvMap} />
+               <meshStandardMaterial color="#111" roughness={0.9} metalness={0.1} />
+           ) : item.url ? (
+               <ImageMaterial url={item.url} />
            ) : (
-               <ImageMaterial url={item.url || ''} pmremEnvMap={pmremEnvMap} />
+               <meshStandardMaterial color="#000" />
            )}
        </mesh>
+
+       {/* LAYER 2: Double Exposure Reflection Overlay (Hearts/Emojis) */}
+       <mesh position={[0, 0, 0.102]}>
+           <planeGeometry args={[3.0, 4.0]} />
+           <meshBasicMaterial 
+               map={aestheticTexture} 
+               transparent 
+               opacity={0.35} 
+               blending={THREE.AdditiveBlending} 
+               depthWrite={false} 
+           />
+       </mesh>
+
+       {/* LAYER 3: Thick Physical Glass Shield (Clearcoat 1, Metalness 0.1) */}
+       <mesh position={[0, 0, 0.103]}>
+           <planeGeometry args={[3.0, 4.0]} />
+           <meshPhysicalMaterial 
+               color="#ffffff"
+               transmission={0.2}
+               opacity={1}
+               transparent
+               roughness={0.05}
+               metalness={0.1}
+               clearcoat={1.0}
+               clearcoatRoughness={0.1}
+               envMap={aestheticTexture}
+               envMapIntensity={1.5}
+               depthWrite={false}
+           />
+       </mesh>
+
+       {/* Glassmorphism Ambient Glow Behind the Polaroid */}
+       {vibe === 'VOID' && (
+           <mesh position={[0, 0, -0.5]} scale={[2.0, 2.0, 1]}>
+               <planeGeometry args={[6, 6]} />
+               <meshBasicMaterial 
+                   map={aestheticTexture} 
+                   transparent 
+                   opacity={0.15} 
+                   blending={THREE.AdditiveBlending} 
+                   depthWrite={false} 
+               />
+           </mesh>
+       )}
        
-       {item.title && (
-           <Html position={[0, -2.8, 0]} center style={{ pointerEvents: 'none' }}>
-               <div style={{ width: '80vw', maxWidth: '300px', textAlign: 'center' }}>
-                   <h3 className="text-white text-sm tracking-widest uppercase font-mono opacity-50 break-words drop-shadow-md">{item.title}</h3>
+       {/* Title Overlay */}
+       {vibe === 'VOID' && item.title && (
+           <Html position={[0, -2.8, 0]} center zIndexRange={[10, 0]}>
+               <div style={{ width: '80vw', maxWidth: '300px', textAlign: 'center', pointerEvents: 'none' }}>
+                   <h3 className="text-white text-sm tracking-widest uppercase font-mono opacity-60 break-words drop-shadow-md">
+                       {item.title}
+                   </h3>
                </div>
            </Html>
        )}
@@ -264,17 +410,25 @@ function ScrollGroup({ currentIndex, children }: { currentIndex: number, childre
     );
 }
 
+// ==========================================
+// MAIN SANCTUM APP
+// ==========================================
+
 export default function XsoReceiverSanctum({ masterAudioUrl, media, onComplete }: XsoReceiverSanctumProps) {
   const [vibe, setVibe] = useState<'VOID' | 'LOCATION'>('VOID');
   const [aesthetic, setAesthetic] = useState<number>(1);
   const [variant, setVariant] = useState<number>(0); 
   const [bgTexture, setBgTexture] = useState<string | null>(null);
   const [blurBg, setBlurBg] = useState<boolean>(true);
-  
   const [currentIndex, setCurrentIndex] = useState(0);
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const dataArrayRef = useRef<Uint8Array | null>(null);
+  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
 
   useEffect(() => {
      if (!masterAudioUrl) return;
@@ -289,9 +443,31 @@ export default function XsoReceiverSanctum({ masterAudioUrl, media, onComplete }
      }
   }, [masterAudioUrl]);
 
+  const initAudioEngine = () => {
+    try {
+        if (!audioContextRef.current && audioRef.current) {
+            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+            audioContextRef.current = new AudioContextClass();
+            analyserRef.current = audioContextRef.current.createAnalyser();
+            analyserRef.current.fftSize = 256;
+            dataArrayRef.current = new Uint8Array(analyserRef.current.frequencyBinCount);
+            
+            sourceRef.current = audioContextRef.current.createMediaElementSource(audioRef.current);
+            sourceRef.current.connect(analyserRef.current);
+            analyserRef.current.connect(audioContextRef.current.destination);
+        }
+        if (audioContextRef.current?.state === 'suspended') {
+            audioContextRef.current.resume();
+        }
+    } catch (e) {
+        console.warn("Audio context setup blocked.", e);
+    }
+  };
+
   const togglePlay = () => {
       if (!audioRef.current) return;
       if (audioRef.current.paused) {
+          initAudioEngine();
           audioRef.current.play().catch(()=>{});
           setIsPlaying(true);
       } else {
@@ -324,39 +500,12 @@ export default function XsoReceiverSanctum({ masterAudioUrl, media, onComplete }
          </button>
       </div>
 
-      <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-4 p-4 bg-black/50 backdrop-blur-md border border-white/10 rounded-xl z-50 pointer-events-auto select-none">
-         <div className="flex flex-col gap-2">
-             <div className="text-white/40 text-[10px] tracking-widest uppercase pb-2 border-b border-white/10">VIBE</div>
-             <button onClick={() => setVibe('VOID')} className={`text-xs text-left px-2 py-1 ${vibe === 'VOID' ? 'text-white border-l-2 border-white' : 'text-white/40'} hover:bg-white/10`}>VOID</button>
-             <button onClick={() => setVibe('LOCATION')} className={`text-xs text-left px-2 py-1 ${vibe === 'LOCATION' ? 'text-white border-l-2 border-white' : 'text-white/40'} hover:bg-white/10`}>LOCATION</button>
-         </div>
-
-         {vibe === 'VOID' && (
-            <div className="flex flex-col gap-2">
-                 <div className="text-white/40 text-[10px] tracking-widest uppercase pb-2 border-b border-white/10 mt-2">AESTHETIC</div>
-                 <div className="grid grid-cols-2 gap-1 px-1">
-                     {Object.keys(xsoAesthetics).map((a) => (
-                         <button key={a} onClick={() => setAesthetic(Number(a))} className={`text-[10px] text-left px-2 py-1 ${aesthetic === Number(a) ? 'text-white border-l-2 border-white' : 'text-white/40'} hover:bg-white/10`}>
-                             AURA {a}
-                         </button>
-                     ))}
-                 </div>
-                 <div className="text-white/40 text-[10px] tracking-widest uppercase pb-2 border-b border-white/10 mt-2">VARIANT</div>
-                 <div className="flex gap-2 px-1">
-                     {[0, 1].map((v) => (
-                         <button key={v} onClick={() => setVariant(v)} className={`w-6 h-6 flex items-center justify-center text-xs rounded transition-colors ${variant === v ? 'bg-white text-black' : 'bg-white/20 text-white hover:bg-white/30'}`}>
-                             {v + 1}
-                         </button>
-                     ))}
-                 </div>
-            </div>
-         )}
-
-         {vibe === 'LOCATION' && (
-             <div className="flex flex-col gap-2">
-                 <div className="text-white/40 text-[10px] tracking-widest uppercase pb-2 border-b border-white/10 mt-2">BACKGROUND</div>
-                 <label className="text-xs text-left px-2 py-1 text-white/80 hover:bg-white/10 cursor-pointer block border-l-2 border-white/20">
-                     UPLOAD
+      {vibe === 'LOCATION' ? (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
+              <div className="bg-[#111111] p-8 border border-white/10 rounded-xl pointer-events-auto flex flex-col items-center gap-4 shadow-2xl">
+                  <h2 className="text-white text-sm tracking-widest uppercase">LOCATION BACKGROUND</h2>
+                  <label className="px-6 py-3 border border-white/20 text-white text-xs uppercase hover:bg-white/10 cursor-pointer block rounded transition-colors bg-white/5">
+                     UPLOAD IMAGE
                      <input type="file" accept="image/*" className="hidden" onChange={(e) => {
                          const file = e.target.files?.[0];
                          if (file) {
@@ -365,50 +514,88 @@ export default function XsoReceiverSanctum({ masterAudioUrl, media, onComplete }
                          }
                      }} />
                  </label>
-                 <button onClick={() => setBlurBg(!blurBg)} className={`text-xs text-left px-2 py-1 ${blurBg ? 'text-white border-l-2 border-white' : 'text-white/40'} hover:bg-white/10 mt-2`}>
+                 <button onClick={() => setBlurBg(!blurBg)} className={`text-xs px-4 py-2 mt-2 rounded transition-colors ${blurBg ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'}`}>
                      BLUR: {blurBg ? 'ON' : 'OFF'}
                  </button>
+                 <button onClick={() => setVibe('VOID')} className="text-xs px-4 py-2 mt-4 text-white/50 hover:text-white transition-colors uppercase tracking-widest border-t border-white/10 pt-4 w-full">
+                     RETURN TO VOID
+                 </button>
+              </div>
+          </div>
+      ) : (
+          <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-4 p-4 bg-black/50 backdrop-blur-md border border-white/10 rounded-xl z-50 pointer-events-auto select-none">
+             <div className="flex flex-col gap-2">
+                 <div className="text-white/40 text-[10px] tracking-widest uppercase pb-2 border-b border-white/10">VIBE</div>
+                 <button onClick={() => setVibe('VOID')} className={`text-xs text-left px-2 py-1 ${vibe === 'VOID' ? 'text-white border-l-2 border-white' : 'text-white/40'} hover:bg-white/10`}>1. MEMORY VOID</button>
+                 <button onClick={() => setVibe('LOCATION')} className={`text-xs text-left px-2 py-1 ${vibe as any === 'LOCATION' ? 'text-white border-l-2 border-white' : 'text-white/40'} hover:bg-white/10`}>2. LOCATION</button>
              </div>
-         )}
-      </div>
 
-      <Canvas style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
-         <Environment preset="night" />
-         <PerspectiveCamera makeDefault fov={35} position={[0, 0, 15]} />
+             <div className="flex flex-col gap-2">
+                  <div className="text-white/40 text-[10px] tracking-widest uppercase pb-2 border-b border-white/10 mt-2">AESTHETIC TYPE</div>
+                  <div className="grid grid-cols-2 gap-1 px-1">
+                      {Object.keys(xsoAesthetics).map((a) => (
+                          <button key={a} onClick={() => setAesthetic(Number(a))} className={`text-[10px] text-left px-2 py-1 ${aesthetic === Number(a) ? 'text-white border-l-2 border-white' : 'text-white/40'} hover:bg-white/10`}>
+                              AURA {a}
+                          </button>
+                      ))}
+                  </div>
+                  <div className="text-white/40 text-[10px] tracking-widest uppercase pb-2 border-b border-white/10 mt-2">VARIANT</div>
+                  <div className="flex gap-2 px-1">
+                      {[0, 1].map((v) => (
+                          <button key={v} onClick={() => setVariant(v)} className={`w-6 h-6 flex items-center justify-center text-xs rounded transition-colors ${variant === v ? 'bg-white text-black' : 'bg-white/20 text-white hover:bg-white/30'}`}>
+                              {v + 1}
+                          </button>
+                      ))}
+                  </div>
+             </div>
+          </div>
+      )}
+
+      <Canvas style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0 }}>
+         {/* Essential global lighting to prevent black silhouettes */}
+         <ambientLight intensity={0.5} />
+         <Environment preset="night" environmentIntensity={0.2} />
+         
+         <PerspectiveCamera makeDefault fov={35} position={[0, 0, 16]} />
 
          <VibeController vibe={vibe} bgTexture={bgTexture} blurBg={blurBg} />
 
-         {vibe === 'VOID' && <AudioReactiveSymphony audioRef={audioRef} />}
+         {vibe === 'VOID' && (
+             <AudioReactiveSymphony 
+                 audioRef={audioRef} 
+                 analyserRef={analyserRef} 
+                 dataArrayRef={dataArrayRef} 
+             />
+         )}
 
          <ScrollGroup currentIndex={currentIndex}>
             {media.map((item, i) => (
                <Suspense key={item.id} fallback={null}>
                   <PolaroidSlab 
                       item={item} 
-                      position={[i % 2 === 0 ? -1.5 : 1.5, i % 2 === 0 ? 0.2 : -0.2, i * -20]} 
+                      position={[0, 0.2, i * -20]}
                       aesthetic={aesthetic} 
-                      variant={variant} 
+                      variant={variant}
+                      vibe={vibe}
                   />
                </Suspense>
             ))}
          </ScrollGroup>
-
-         <EffectComposer>
-            <Bloom luminanceThreshold={0.5} mipmapBlur intensity={1} />
-            <ChromaticAberration offset={new THREE.Vector2(0.002, 0.002)} />
-            <Noise opacity={0.03} />
-         </EffectComposer>
       </Canvas>
       
-      <div className="absolute bottom-10 left-0 right-0 flex justify-center pointer-events-none z-50 gap-2">
-         {media.map((_, i) => (
-            <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === currentIndex ? 'bg-white scale-150' : 'bg-white/30'}`} />
-         ))}
-      </div>
-      
-      <div className="absolute bottom-16 left-0 right-0 flex justify-center pointer-events-none z-50">
-         <h1 className="text-white/80 text-xs tracking-[0.4em] font-mono uppercase drop-shadow-lg">XSO RECEIVER</h1>
-      </div>
+      {vibe === 'VOID' && (
+         <>
+            <div className="absolute bottom-10 left-0 right-0 flex justify-center pointer-events-none z-40 gap-2">
+               {media.map((_, i) => (
+                  <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === currentIndex ? 'bg-white scale-150' : 'bg-white/30'}`} />
+               ))}
+            </div>
+            
+            <div className="absolute bottom-16 left-0 right-0 flex justify-center pointer-events-none z-40">
+               <h1 className="text-white/80 text-xs tracking-[0.4em] font-mono uppercase drop-shadow-lg">XSO RECEIVER</h1>
+            </div>
+         </>
+      )}
     </div>
   );
 }
