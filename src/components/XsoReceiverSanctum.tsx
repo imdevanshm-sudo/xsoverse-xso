@@ -100,28 +100,42 @@ function InspectableArtifact({ children, isCurrent, onInteractStart, onInteractE
   );
 }
 
-function PolaroidSlab({ item, position, isCurrent, onInteractStart, onInteractEnd, auraIndex = 0, aestheticVariant = 0, vibe = 'VOID' }: any) {
+function PolaroidSlab({ item, position, isCurrent, onInteractStart, onInteractEnd, aesthetic = 1, variant = 1, vibe = 'VOID', bgTexture = null }: any) {
     const { gl } = useThree();
     const texture = useTexture(item.url) as THREE.Texture;
-    const aura = AURA_TYPES[auraIndex] || AURA_TYPES[0];
+    const aura = AURA_TYPES[aesthetic - 1] || AURA_TYPES[0];
     
-    // In LOCATION vibe, use the location background (e.g., from aestheticVariant)
-    // Actually the instructions say: "The Polaroid's envMap should ideally be the same location texture"
-    // So we'll use the same textures whether VOID or LOCATION, but for VOID it's a symbolic high-res texture,
-    // and for LOCATION it's a location image. Let's just use the aura textures either way to satisfy envMap.
-    const envTextureUrl = aura.textures[aestheticVariant] || aura.textures[0];
-    const envTexture = useTexture(envTextureUrl) as THREE.Texture;
-    const targetColor = new THREE.Color(aura.colors[aestheticVariant] || aura.colors[0]);
+    // For VOID
+    const envTextureUrl = aura.textures[variant - 1] || aura.textures[0];
+    const defaultEnvTexture = useTexture(envTextureUrl) as THREE.Texture;
     
-    useMemo(() => {
-        envTexture.mapping = THREE.EquirectangularReflectionMapping;
-        envTexture.anisotropy = gl.capabilities.getMaxAnisotropy();
-        envTexture.colorSpace = THREE.SRGBColorSpace;
-        envTexture.minFilter = THREE.LinearFilter;
-        envTexture.magFilter = THREE.LinearFilter;
-        envTexture.generateMipmaps = false;
-        envTexture.needsUpdate = true;
-    }, [envTexture, gl]);
+    // Choose dynamic env map
+    const activeEnvTexture = (vibe === 'LOCATION' && bgTexture) ? bgTexture : defaultEnvTexture;
+    const targetColor = new THREE.Color(aura.colors[variant - 1] || aura.colors[0]);
+    
+    const [pmremEnvMap, setPmremEnvMap] = useState<THREE.Texture | null>(null);
+    useEffect(() => {
+        if (!activeEnvTexture) return;
+        
+        try {
+            const generator = new THREE.PMREMGenerator(gl);
+            generator.compileEquirectangularShader();
+            // Generate the properly formatted CubeUV texture required by standard materials
+            const rt = generator.fromEquirectangular(activeEnvTexture);
+            generator.dispose();
+            setPmremEnvMap(rt.texture);
+            
+            return () => {
+                rt.dispose();
+            };
+        } catch (e) {
+            console.error("Failed to generate PMREM map", e);
+            activeEnvTexture.mapping = THREE.EquirectangularReflectionMapping;
+            activeEnvTexture.colorSpace = THREE.SRGBColorSpace;
+            activeEnvTexture.needsUpdate = true;
+            setPmremEnvMap(activeEnvTexture);
+        }
+    }, [activeEnvTexture, gl]);
     
     const groupRef = useRef<THREE.Group>(null);
     
@@ -133,38 +147,26 @@ function PolaroidSlab({ item, position, isCurrent, onInteractStart, onInteractEn
 
     return (
         <group position={position} ref={groupRef}>
-            {/* Glowing rim light / aura */}
-            <mesh position={[0, 0, -1]}>
-               <planeGeometry args={[12, 16]} />
-               <shaderMaterial
-                  transparent
-                  depthWrite={false}
-                  blending={THREE.AdditiveBlending}
-                  uniforms={{ uColor: { value: targetColor } }}
-                  vertexShader={`
-                      varying vec2 vUv;
-                      void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
-                  `}
-                  fragmentShader={`
-                      uniform vec3 uColor;
-                      varying vec2 vUv;
-                      void main() {
-                          float d = distance(vUv, vec2(0.5));
-                          float alpha = smoothstep(0.5, 0.0, d) * 0.4;
-                          gl_FragColor = vec4(uColor, alpha);
-                      }
-                  `}
-               />
-            </mesh>
-            <pointLight position={[0, 0, -2]} distance={10} intensity={2} color={targetColor} />
-
+            {/* Glassmorphism Aura - Only in VOID vibe */}
+            {vibe === 'VOID' && (
+              <mesh position={[0, 0, -45]}>
+                 <sphereGeometry args={[15, 32, 32]} />
+                 <meshBasicMaterial
+                    color={targetColor}
+                    transparent
+                    opacity={0.15}
+                    depthWrite={false}
+                 />
+              </mesh>
+            )}
+            
             <InspectableArtifact isCurrent={isCurrent} onInteractStart={onInteractStart} onInteractEnd={onInteractEnd}>
               <RoundedBox args={[3.2, 4.2, 0.2]} radius={0.05}>
                  <meshStandardMaterial color="#111" roughness={0.8} />
               </RoundedBox>
               <mesh position={[0, 0, 0.101]}>
                  <planeGeometry args={[3.0, 4.0]} />
-                 <meshPhysicalMaterial map={texture} clearcoat={1} roughness={0} metalness={1} envMap={envTexture} envMapIntensity={5} />
+                 <meshPhysicalMaterial map={texture} color="#ffffff" clearcoat={1} roughness={0.15} metalness={0.8} envMap={pmremEnvMap} envMapIntensity={0.6} />
               </mesh>
             </InspectableArtifact>
             {item.title && (
@@ -466,117 +468,57 @@ function CameraRig({ targetPosition, targetLookAt, targetFov = 35 }: { targetPos
   );
 }
 
+const xsoAesthetics: Record<number, string[]> = {
+  1: ['/aesthetic-heart.jpg', '/aesthetic-rainbow.jpg'],
+  2: ['/aesthetic-moon.jpg', '/aesthetic-star.jpg'],
+  3: ['/aesthetic-sparkle.jpg', '/aesthetic-flower.jpg'],
+  4: ['/aesthetic-flame.jpg', '/aesthetic-cloud.jpg'],
+  5: ['/aesthetic-crystal.jpg', '/aesthetic-eye.jpg'],
+  6: ['/aesthetic-wing.jpg', '/aesthetic-tree.jpg'],
+  7: ['/aesthetic-teardrop.jpg', '/aesthetic-sun.jpg'],
+  8: ['/aesthetic-butterfly.jpg', '/aesthetic-shell.jpg'],
+  9: ['/aesthetic-crown.jpg', '/aesthetic-sword.jpg']
+};
+
 export const AURA_TYPES = [
-  { 
-    name: 'Ethereal', 
-    textures: [
-      'https://picsum.photos/seed/heart4k/2048/1024', 
-      'https://picsum.photos/seed/rainbow/2048/1024'
-    ], 
-    colors: ['#ff4d4d', '#4d4dff']
-  },
-  { 
-    name: 'Cosmic', 
-    textures: [
-      'https://picsum.photos/seed/moon4k/2048/1024', 
-      'https://picsum.photos/seed/star4k/2048/1024'
-    ], 
-    colors: ['#4a154b', '#15243b']
-  },
-  { 
-    name: 'Gilded Dust', 
-    textures: [
-      'https://picsum.photos/seed/gilded4k/2048/1024', 
-      'https://picsum.photos/seed/goldcrystal/2048/1024'
-    ], 
-    colors: ['#59421a', '#69522a']
-  },
-  { 
-    name: 'Petal Fall', 
-    textures: [
-      'https://picsum.photos/seed/petal4k/2048/1024', 
-      'https://picsum.photos/seed/sakura4k/2048/1024'
-    ], 
-    colors: ['#66293a', '#76394a']
-  },
-  { 
-    name: 'Cosmic Void', 
-    textures: [
-      'https://picsum.photos/seed/void4k/2048/1024', 
-      'https://picsum.photos/seed/blackhole/2048/1024'
-    ], 
-    colors: ['#050814', '#151824']
-  },
-  { 
-    name: 'Ember Ash', 
-    textures: [
-      'https://picsum.photos/seed/ember4k/2048/1024', 
-      'https://picsum.photos/seed/fire4k/2048/1024'
-    ], 
-    colors: ['#661a00', '#762a10']
-  },
-  { 
-    name: 'Cobalt Rain', 
-    textures: [
-      'https://picsum.photos/seed/cobalt4k/2048/1024', 
-      'https://picsum.photos/seed/ocean4k/2048/1024'
-    ], 
-    colors: ['#101b33', '#202b43']
-  },
-  { 
-    name: 'Prismatic', 
-    textures: [
-      'https://picsum.photos/seed/prism4k/2048/1024', 
-      'https://picsum.photos/seed/neon4k/2048/1024'
-    ], 
-    colors: ['#3a1c4d', '#4a2c5d']
-  },
-  { 
-    name: 'Radiant', 
-    textures: [
-      'https://picsum.photos/seed/radiant4k/2048/1024', 
-      'https://picsum.photos/seed/light4k/2048/1024'
-    ], 
-    colors: ['#5e5436', '#6e6446']
-  }
+  { name: 'Ethereal', textures: xsoAesthetics[1], colors: ['#ff4d4d', '#4d4dff'] },
+  { name: 'Cosmic', textures: xsoAesthetics[2], colors: ['#4a154b', '#15243b'] },
+  { name: 'Gilded Dust', textures: xsoAesthetics[3], colors: ['#59421a', '#69522a'] },
+  { name: 'Petal Fall', textures: xsoAesthetics[4], colors: ['#66293a', '#76394a'] },
+  { name: 'Cosmic Void', textures: xsoAesthetics[5], colors: ['#050814', '#151824'] },
+  { name: 'Ember Ash', textures: xsoAesthetics[6], colors: ['#661a00', '#762a10'] },
+  { name: 'Cobalt Rain', textures: xsoAesthetics[7], colors: ['#101b33', '#202b43'] },
+  { name: 'Prismatic', textures: xsoAesthetics[8], colors: ['#3a1c4d', '#4a2c5d'] },
+  { name: 'Radiant', textures: xsoAesthetics[9], colors: ['#5e5436', '#6e6446'] }
 ];
 
-function VibeBackground({ auraIndex, aestheticVariant = 0, vibe, blurBg, blockType }: { auraIndex: number, aestheticVariant?: number, vibe: string, blurBg: boolean, blockType: string }) {
-    const aura = AURA_TYPES[auraIndex] || AURA_TYPES[0];
+function VibeBackground({ vibe, blurBg, bgTexture }: { vibe: string, blurBg: boolean, bgTexture: THREE.Texture | null }) {
     const { scene } = useThree();
-    const map = useTexture(aura.textures[aestheticVariant]) as THREE.Texture;
     const materialRef = useRef<THREE.ShaderMaterial>(null);
-    const ambientLightRef = useRef<THREE.AmbientLight>(null);
-
-    // Apply color space to background map so it's not washed out when unblurred
-    useMemo(() => {
-        map.colorSpace = THREE.SRGBColorSpace;
-    }, [map]);
 
     useFrame((_, delta) => {
-        const isBlack = vibe === 'VOID' || blockType !== 'image';
-        const targetColor = isBlack ? new THREE.Color('#000000') : new THREE.Color(aura.colors[aestheticVariant] || '#000');
-        if (scene.fog && 'color' in scene.fog) {
-            (scene.fog as THREE.Fog).color.lerp(targetColor, delta * 2);
+        if (vibe === 'VOID') {
+            scene.background = new THREE.Color('#020104');
+            scene.fog = new THREE.Fog('#020104', 10, 40);
+        } else {
+            scene.background = new THREE.Color('#000000');
+            scene.fog = new THREE.Fog('#000000', 10, 40);
         }
-        if (scene.background instanceof THREE.Color) {
-            scene.background.lerp(targetColor, delta * 2);
-        }
-        if (ambientLightRef.current) {
-            ambientLightRef.current.color.lerp(targetColor, delta * 2);
-        }
+
         if (materialRef.current) {
             materialRef.current.uniforms.uTime.value += delta;
             materialRef.current.uniforms.uBlur.value = blurBg ? 1.0 : 0.0;
         }
     });
 
-    const isVisible = vibe === 'LOCATION' && blockType === 'image';
+    if (vibe === 'VOID') {
+        return <ambientLight intensity={0.2} />;
+    }
 
     return (
         <group>
-            <ambientLight ref={ambientLightRef} intensity={0.5} />
-            {isVisible && (
+            <ambientLight intensity={0.8} />
+            {bgTexture && (
                 <mesh position={[0, 0, -150]}>
                     <planeGeometry args={[800, 500]} />
                     <shaderMaterial
@@ -584,7 +526,7 @@ function VibeBackground({ auraIndex, aestheticVariant = 0, vibe, blurBg, blockTy
                         transparent
                         depthWrite={false}
                         uniforms={{
-                            uMap: { value: map },
+                            uMap: { value: bgTexture },
                             uTime: { value: 0 },
                             uBlur: { value: blurBg ? 1.0 : 0.0 }
                         }}
@@ -647,10 +589,11 @@ function VibeBackground({ auraIndex, aestheticVariant = 0, vibe, blurBg, blockTy
 
 export default function XsoReceiverSanctum({ auraWeight = [1, 1], masterAudioUrl, media, onComplete }: XsoReceiverSanctumProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [auraIndex, setAuraIndex] = useState(0);
-  const [aestheticVariant, setAestheticVariant] = useState(0);
   const [vibe, setVibe] = useState<'VOID' | 'LOCATION'>('VOID');
-  const [blurBg, setBlurBg] = useState(false);
+  const [aesthetic, setAesthetic] = useState<number>(1); // 1-9 for Void
+  const [variant, setVariant] = useState<number>(1); // 1 or 2 for Void
+  const [bgTexture, setBgTexture] = useState<THREE.Texture | null>(null); // For Location upload
+  const [blurBg, setBlurBg] = useState<boolean>(true); // For Location
 
   // Audio Context exact from original
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -836,18 +779,15 @@ export default function XsoReceiverSanctum({ auraWeight = [1, 1], masterAudioUrl
       </div>
 
       <Canvas style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 5 }}>
-        <color attach="background" args={['#000000']} />
-        <fog attach="fog" args={['#000000', 10, 40]} />
-        <ambientLight intensity={0.2} />
+        {/* Environment setup is handled dynamically inside VibeBackground */}
         
         <Environment preset="studio" environmentIntensity={0.1}>
-          {/* Nebula-like reflections for the dark glass */}
           <Lightformer form="circle" intensity={1.5} color="#ff00cc" position={[10, 5, 5]} scale={20} />
           <Lightformer form="circle" intensity={2} color="#00ffff" position={[-10, 5, 5]} scale={20} />
           <Lightformer form="circle" intensity={1} color="#ff0000" position={[0, 10, -5]} scale={20} />
         </Environment>
 
-        <VibeBackground auraIndex={auraIndex} aestheticVariant={aestheticVariant} vibe={vibe} blurBg={blurBg} blockType={media[currentIndex]?.type || 'image'} />
+        <VibeBackground vibe={vibe} blurBg={blurBg} bgTexture={bgTexture} />
 
         {vibe === 'VOID' && <AudioReactiveSymphony audioRef={masterAudioRef} />}
 
@@ -859,7 +799,7 @@ export default function XsoReceiverSanctum({ auraWeight = [1, 1], masterAudioUrl
               const isCurrent = currentIndex === i;
               return (
                 <group key={item.id}>
-                  {item.type === 'image' && <PolaroidSlab item={item} position={pos} auraIndex={auraIndex} aestheticVariant={aestheticVariant} vibe={vibe} isCurrent={isCurrent} onInteractStart={() => {isInteracting.current = true}} onInteractEnd={() => {isInteracting.current = false}} />}
+                  {item.type === 'image' && <PolaroidSlab item={item} position={pos} aesthetic={aesthetic} variant={variant} vibe={vibe} bgTexture={bgTexture} isCurrent={isCurrent} onInteractStart={() => {isInteracting.current = true}} onInteractEnd={() => {isInteracting.current = false}} />}
                   {item.type === 'audio' && <CassetteArchive item={item} position={pos} isCurrent={isCurrent} onInteractStart={() => {isInteracting.current = true}} onInteractEnd={() => {isInteracting.current = false}} />}
                   {item.type === 'video' && <IMAXMonolith item={item} position={pos} isCurrent={isCurrent} onInteractStart={() => {isInteracting.current = true}} onInteractEnd={() => {isInteracting.current = false}} />}
                 </group>
@@ -875,70 +815,72 @@ export default function XsoReceiverSanctum({ auraWeight = [1, 1], masterAudioUrl
       </Canvas>
 
       <div 
-         className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-4 p-4 bg-black/40 border border-white/10 backdrop-blur-md rounded-lg pointer-events-auto z-50 transition-all"
+         className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-4 p-4 bg-black/40 border border-white/10 backdrop-blur-md rounded-lg pointer-events-auto z-50 transition-all font-mono"
          onPointerDown={(e) => { e.stopPropagation(); }}
          onPointerUp={(e) => { e.stopPropagation(); }}
          onPointerMove={(e) => { e.stopPropagation(); }}
          onWheel={(e) => { e.stopPropagation(); }}
       >
          <div className="flex flex-col gap-2">
-            <div className="text-white/30 text-[10px] tracking-[0.2em] font-mono mb-2 border-b border-white/10 pb-2">VIBE</div>
-            <button 
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setVibe('VOID'); }} 
-                className={`text-xs font-mono text-left px-2 py-1 transition-all hover:bg-white/5 ${vibe === 'VOID' ? 'text-white border-l-2 border-white pl-2' : 'text-white/40'}`}
-            >
+            <div className="text-white/30 text-[10px] tracking-[0.2em] mb-2 border-b border-white/10 pb-2">VIBE</div>
+            <button onClick={() => setVibe('VOID')} className={`text-xs text-left px-2 py-1 hover:bg-white/5 ${vibe === 'VOID' ? 'text-white border-l-2 border-white pl-2' : 'text-white/40'}`}>
                 1. MEMORY VOID
             </button>
-            <button 
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setVibe('LOCATION'); setBlurBg(true); }} 
-                className={`text-xs font-mono text-left px-2 py-1 transition-all hover:bg-white/5 ${vibe === 'LOCATION' ? 'text-white border-l-2 border-white pl-2' : 'text-white/40'}`}
-            >
+            <button onClick={() => setVibe('LOCATION')} className={`text-xs text-left px-2 py-1 hover:bg-white/5 ${vibe === 'LOCATION' ? 'text-white border-l-2 border-white pl-2' : 'text-white/40'}`}>
                 2. LOCATION
             </button>
          </div>
 
-         {vibe === 'LOCATION' && (
-             <div className="flex flex-col gap-2 mt-2">
-                <div className="text-white/30 text-[10px] tracking-[0.2em] font-mono mb-2 border-b border-white/10 pb-2">BACKGROUND</div>
-                <button 
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setBlurBg(!blurBg); }} 
-                    className={`text-xs font-mono text-left px-2 py-1 transition-all hover:bg-white/5 ${blurBg ? 'text-white border-l-2 border-white pl-2' : 'text-white/40'}`}
-                >
-                    {blurBg ? 'BLUR: ON' : 'BLUR: OFF'}
-                </button>
-             </div>
+         {vibe === 'VOID' && (
+             <>
+                 <div className="flex flex-col gap-2 mt-2">
+                    <div className="text-white/30 text-[10px] tracking-[0.2em] mb-2 border-b border-white/10 pb-2">AESTHETIC TYPE</div>
+                    <div className="grid grid-cols-2 gap-1 px-1">
+                        {AURA_TYPES.map((aura, i) => (
+                            <button key={i} onClick={() => setAesthetic(i + 1)} className={`text-[10px] text-left px-2 py-1 hover:bg-white/5 truncate ${aesthetic === i + 1 ? 'text-white border-l-2 border-white pl-2' : 'text-white/40'}`}>
+                                {aura.name.toUpperCase()}
+                            </button>
+                        ))}
+                    </div>
+                 </div>
+                 <div className="flex flex-col gap-2 mt-2">
+                    <div className="text-white/30 text-[10px] tracking-[0.2em] mb-2 border-b border-white/10 pb-2">VARIANT</div>
+                    <div className="flex gap-2 px-2">
+                        {[1, 2].map((v) => (
+                            <button key={v} onClick={() => setVariant(v)} className={`w-6 h-6 flex items-center justify-center text-xs rounded transition-all ${variant === v ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'}`}>
+                                {v}
+                            </button>
+                        ))}
+                    </div>
+                 </div>
+             </>
          )}
-         
-         <div className="flex flex-col gap-2 mt-2">
-            <div className="text-white/30 text-[10px] tracking-[0.2em] font-mono mb-2 border-b border-white/10 pb-2">AESTHETIC TYPE</div>
-            <div className="grid grid-cols-2 gap-1 px-1">
-                {AURA_TYPES.map((aura, i) => (
-                    <button 
-                        key={i} 
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setAuraIndex(i); setAestheticVariant(0); }} 
-                        className={`text-[10px] font-mono text-left px-2 py-1 transition-all hover:bg-white/5 truncate ${auraIndex === i ? 'text-white border-l-2 border-white pl-2' : 'text-white/40'}`}
-                    >
-                        {aura.name.toUpperCase()}
+
+         {vibe === 'LOCATION' && (
+             <>
+                 <div className="flex flex-col gap-2 mt-2">
+                    <div className="text-white/30 text-[10px] tracking-[0.2em] mb-2 border-b border-white/10 pb-2">BACKGROUND</div>
+                    <label className="text-xs text-left px-2 py-1 text-white/80 hover:bg-white/5 cursor-pointer block border-l-2 border-white/20 pl-2">
+                        UPLOAD IMAGE
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                                const url = URL.createObjectURL(file);
+                                const textureLoader = new THREE.TextureLoader();
+                                textureLoader.load(url, (tex) => {
+                                    tex.colorSpace = THREE.SRGBColorSpace;
+                                    setBgTexture(tex);
+                                });
+                            }
+                        }} />
+                    </label>
+                 </div>
+                 <div className="flex flex-col gap-2 mt-2">
+                    <button onClick={() => setBlurBg(!blurBg)} className={`text-xs text-left px-2 py-1 hover:bg-white/5 ${blurBg ? 'text-white border-l-2 border-white pl-2' : 'text-white/40'}`}>
+                        BLUR: {blurBg ? 'ON' : 'OFF'}
                     </button>
-                ))}
-            </div>
-         </div>
-         
-         {AURA_TYPES[auraIndex] && AURA_TYPES[auraIndex].textures && (
-            <div className="flex flex-col gap-2 mt-2">
-                <div className="text-white/30 text-[10px] tracking-[0.2em] font-mono mb-2 border-b border-white/10 pb-2">VARIANT</div>
-                <div className="flex gap-2 px-2">
-                    {AURA_TYPES[auraIndex].textures.map((_, i) => (
-                        <button 
-                            key={i}
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setAestheticVariant(i); }}
-                            className={`w-6 h-6 flex items-center justify-center text-xs font-mono rounded transition-all ${aestheticVariant === i ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'}`}
-                        >
-                            {i + 1}
-                        </button>
-                    ))}
-                </div>
-            </div>
+                 </div>
+             </>
          )}
       </div>
 
@@ -952,6 +894,10 @@ export default function XsoReceiverSanctum({ auraWeight = [1, 1], masterAudioUrl
             />
           ))}
         </div>
+      </div>
+
+      <div className="absolute bottom-16 left-0 right-0 flex justify-center pointer-events-none z-50">
+         <h1 className="text-white/80 text-xs tracking-[0.4em] font-mono uppercase">SUMMER IN KYOTO - 2024</h1>
       </div>
     </div>
   );
