@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import XsoCinematicCanvas from './components/XsoCinematicCanvas';
+import XsoReceiverSanctum from './components/XsoReceiverSanctum';
+import Xso3DPearl from './components/Xso3DPearl';
 
 const BREATH_DURATION = 6;
 const INITIAL_HOLD_DURATION = 1800;
@@ -494,7 +495,7 @@ export default function App() {
       {/* Memory Cinematic Canvas Overlay */}
       {appState === 'MEMORY_CANVAS' && (
         <div className="absolute inset-0 z-50 pointer-events-auto">
-          <XsoCinematicCanvas 
+          <XsoReceiverSanctum 
             auraWeight={[1, 1]}
             masterAudioUrl="https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg"
             media={[
@@ -561,8 +562,8 @@ export default function App() {
             className="absolute top-20 left-0 right-0 z-20 flex flex-col items-center pointer-events-none"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1, ease: 'easeOut', exit: { duration: 0.4 } }}
+            exit={{ opacity: 0, transition: { duration: 0.4 } }}
+            transition={{ duration: 1, ease: 'easeOut' }}
           >
             <p className="text-white/30 text-[10px] tracking-widest uppercase mb-4 text-center pb-2">
               (SWIPE DOWN TO RETRACT)
@@ -599,8 +600,8 @@ export default function App() {
             className="absolute bottom-16 left-0 right-0 z-20 flex flex-col items-center pointer-events-auto"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1, ease: 'easeOut', exit: { duration: 0.4 } }}
+            exit={{ opacity: 0, transition: { duration: 0.4 } }}
+            transition={{ duration: 1, ease: 'easeOut' }}
           >
             <button 
               className="px-10 py-3.5 bg-white text-black font-semibold tracking-[0.15em] text-sm rounded-full uppercase hover:bg-neutral-200 active:scale-95 transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)]"
@@ -711,114 +712,9 @@ export default function App() {
               </AnimatePresence>
 
               {/* Deep Glowing Cores */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                {/* Audio Reactivity Glow */}
-                <AnimatePresence>
-                  {appState === 'RECORDING_VOICE' && (
-                    <motion.div
-                      className="absolute inset-0 flex items-center justify-center w-full h-full rounded-full mix-blend-screen"
-                      initial={{ opacity: 0, scale: 0.6 }}
-                      animate={{ 
-                        opacity: 0.3 + (audioLevel / 255) * 0.7,
-                        scale: 0.6 + (audioLevel / 255) * 0.8
-                      }}
-                      exit={{ opacity: 0, scale: 0.6 }}
-                      style={{
-                        background: 'radial-gradient(circle at 50% 50%, rgba(255,255,255,0.8) 0%, #d450ff 25%, #4a00e0 50%, transparent 75%)',
-                        filter: 'blur(15px)',
-                        willChange: 'transform, opacity'
-                      }}
-                      transition={{ type: "tween", duration: 0.05 }}
-                    />
-                  )}
-                </AnimatePresence>
-                {/* Amber/Rose Heart */}
-                <motion.div
-                  className="absolute w-3/5 h-3/5 rounded-full mix-blend-screen"
-                  style={{
-                    background: appState === 'RITUAL_HOLD' 
-                      ? 'radial-gradient(circle at 40% 40%, #ffffff 0%, #ff99bb 30%, #e6005c 60%, transparent 80%)'
-                      : 'radial-gradient(circle at 40% 40%, #ffffff 0%, #ffcf70 20%, #ff7f00 50%, rgba(200, 30, 0, 0) 70%)',
-                    boxShadow: appState === 'RITUAL_HOLD' ? '0 0 150px 50px rgba(230, 0, 92, 0.6)' : '0 0 100px 30px rgba(255, 100, 0, 0.4)',
-                    filter: 'blur(8px)',
-                    willChange: 'transform, opacity'
-                  }}
-                  animate={{
-                    scale: appState === 'FOCUSED_INITIAL' ? 10 : (appState === 'RITUAL_HOLD' ? 6 : [1, 1.06, 1]),
-                    opacity: isCoolingPhase ? 0.3 : isHoldingPearl ? 1 : [0.75, 1, 0.75],
-                    rotate: [0, 60, 0],
-                  }}
-                  transition={{
-                    scale: appState === 'FOCUSED_INITIAL' ? { duration: 1.8, ease: 'easeIn' } : appState === 'RITUAL_HOLD' ? { duration: RITUAL_HOLD_DURATION/1000, ease: 'easeIn' } : { duration: BREATH_DURATION, repeat: Infinity, ease: 'easeInOut' },
-                    opacity: isCoolingPhase ? { duration: 1 } : isHoldingPearl ? { duration: 1.8, ease: 'easeIn' } : { duration: BREATH_DURATION, repeat: Infinity, ease: 'easeInOut' },
-                    rotate: { duration: BREATH_DURATION * 1.5, repeat: Infinity, ease: 'easeInOut' },
-                  }}
-                />
-                {/* Purple Swirl */}
-                <motion.div
-                  className="absolute w-[55%] h-[55%] rounded-[40%_60%_70%_30%/40%_50%_60%_50%] mix-blend-screen"
-                  style={{
-                    background: 'radial-gradient(circle at 60% 60%, rgba(255,255,255,0.9) 0%, #d450ff 30%, #4a00e0 60%, transparent 80%)',
-                    boxShadow: '0 0 120px 40px rgba(150, 50, 255, 0.3)',
-                    filter: 'blur(6px)',
-                    willChange: 'transform, opacity'
-                  }}
-                  animate={{
-                    scale: appState === 'FOCUSED_INITIAL' ? 12 : (appState === 'RITUAL_HOLD' ? 8 : [1.05, 1, 1.05]),
-                    opacity: isCoolingPhase ? 0.3 : isHoldingPearl ? 0.8 : [0.6, 0.9, 0.6],
-                    rotate: appState === 'RITUAL_HOLD' ? [360, 0] : [360, 280, 360],
-                  }}
-                  transition={{
-                    scale: appState === 'FOCUSED_INITIAL' ? { duration: 1.8, ease: 'easeIn' } : appState === 'RITUAL_HOLD' ? { duration: RITUAL_HOLD_DURATION/1000, ease: 'easeIn' } : { duration: BREATH_DURATION, repeat: Infinity, ease: 'easeInOut' },
-                    opacity: isCoolingPhase ? { duration: 1 } : isHoldingPearl ? { duration: 1.8, ease: 'easeIn' } : { duration: BREATH_DURATION, repeat: Infinity, ease: 'easeInOut' },
-                    rotate: appState === 'RITUAL_HOLD' ? { duration: 2, repeat: Infinity, ease: 'linear' } : { duration: BREATH_DURATION * 1.5, repeat: Infinity, ease: 'easeInOut' },
-                  }}
-                />
+              <div className="absolute inset-0 rounded-full overflow-hidden pointer-events-none z-20">
+                <Xso3DPearl isActive={isHoldingPearl} color={appState === 'RITUAL_HOLD' || appState === 'RECORDING_VOICE' ? '#ff0055' : '#8b5cf6'} />
               </div>
-
-              <div style={{ opacity: isCoolingPhase ? 0.5 : 1, transition: 'opacity 1s ease-out' }}>
-                <NestedCoreFields isHolding={isHoldingPearl} isRitual={appState === 'RITUAL_HOLD'} />
-              </div>
-
-              {/* Thick, Pearlescent Frosted Sea-Glass Shell */}
-              <motion.div
-                className="absolute inset-0 rounded-full pointer-events-none"
-                animate={{ opacity: appState === 'FOCUSED_INITIAL' ? 0 : 1 }}
-                transition={{ duration: appState === 'RITUAL_HOLD' ? 0 : 1.5, ease: 'easeIn' }}
-                style={{
-                  backdropFilter: 'blur(24px)',
-                  WebkitBackdropFilter: 'blur(24px)',
-                  background: 'radial-gradient(circle at 35% 20%, rgba(255, 255, 255, 0.35) 0%, rgba(200, 220, 255, 0.08) 40%, rgba(5, 10, 25, 0.6) 100%)',
-                  boxShadow: `
-                    inset 20px 30px 60px -20px rgba(255, 255, 255, 0.8),
-                    inset -20px -30px 80px -10px rgba(0, 5, 20, 0.95),
-                    inset 0 0 30px rgba(255, 255, 255, 0.2),
-                    0 35px 80px -20px rgba(0, 0, 0, 0.95),
-                    0 0 140px 15px rgba(160, 60, 255, 0.15),
-                    0 0 100px 5px rgba(255, 120, 30, 0.1)
-                  `,
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  willChange: 'opacity'
-                }}
-              >
-                <motion.div
-                  className="absolute inset-0 rounded-full opacity-20 mix-blend-overlay"
-                  style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
-                    willChange: 'transform, opacity'
-                  }}
-                  animate={{
-                    scale: [1, 1.05, 1],
-                    opacity: [0.15, 0.3, 0.15],
-                    rotate: [0, 5, 0],
-                  }}
-                  transition={{
-                    duration: BREATH_DURATION,
-                    repeat: Infinity,
-                    ease: 'easeInOut',
-                  }}
-                />
-              </motion.div>
             </>
           )}
         </motion.div>
