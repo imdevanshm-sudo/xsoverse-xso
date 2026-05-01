@@ -4,8 +4,28 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>My Google AI Studio App</title>
+    <style>
+      #global-error { color: red; font-family: monospace; position: absolute; z-index: 999999; background: #fff; padding: 10px; border: 1px solid red; display: none; margin: 10px; }
+    </style>
+    <script>
+      window.addEventListener('error', function(e) {
+        var el = document.getElementById('global-error');
+        if(el) {
+          el.style.display = 'block';
+          el.innerText += e.error ? e.error.stack : e.message + '\n';
+        }
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        var el = document.getElementById('global-error');
+        if(el) {
+          el.style.display = 'block';
+          el.innerText += 'Unhandled Promise: ' + (e.reason ? e.reason.stack || e.reason : 'unknown') + '\n';
+        }
+      });
+    </script>
   </head>
   <body>
+    <div id="global-error"></div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

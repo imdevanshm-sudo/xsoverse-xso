@@ -18,7 +18,7 @@ export default function AudioReactiveSymphony({ audioRef }: AudioReactiveSymphon
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    if (!audioRef?.current) return;
+    if (!audioRef.current) return;
     const audioEl = audioRef.current;
 
     const initAudio = () => {
@@ -66,12 +66,13 @@ export default function AudioReactiveSymphony({ audioRef }: AudioReactiveSymphon
       <ambientLight intensity={0.2} color="#ffffff" />
       <pointLight position={[0, 10, 0]} intensity={1.5} color="#ffffff" distance={30} />
       
-    <group position={[0, -2, -10]}>
-      <pointLight position={[0, 5, -10]} intensity={2} color="#ffffff" />
-      <PianoMonoliths analyserRef={analyserRef} dataArrayRef={dataArrayRef} />
-      <HarpStrings analyserRef={analyserRef} dataArrayRef={dataArrayRef} />
-      <GuitarRings analyserRef={analyserRef} dataArrayRef={dataArrayRef} />
-    </group>
+      {isReady && analyserRef.current && dataArrayRef.current && (
+        <group position={[0, -15, -50]}>
+          <PianoMonoliths analyserRef={analyserRef} dataArrayRef={dataArrayRef} />
+          <HarpStrings analyserRef={analyserRef} dataArrayRef={dataArrayRef} />
+          <GuitarRings analyserRef={analyserRef} dataArrayRef={dataArrayRef} />
+        </group>
+      )}
 
       {/* Ground Reflection */}
       <mesh position={[0, -5, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -113,36 +114,22 @@ function PianoMonoliths({ analyserRef, dataArrayRef }: any) {
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const scales = useRef(new Float32Array(count).fill(1));
 
-  useEffect(() => {
-     if (meshRef.current) {
-        for(let i = 0; i < count; i++) {
-            const offset = i - (count - 1) / 2;
-            const x = offset * 1.5;
-            const z = -8 - Math.abs(offset) * 0.5;
-            dummy.position.set(x, -4.5, z);
-            dummy.scale.set(1, 1, 1);
-            dummy.updateMatrix();
-            meshRef.current.setMatrixAt(i, dummy.matrix);
-        }
-        meshRef.current.instanceMatrix.needsUpdate = true;
-     }
-  }, []);
-
   useFrame((_, delta) => {
-    if (!meshRef.current) return;
+    if (!analyserRef.current || !dataArrayRef.current || !meshRef.current) return;
+    // We already call getByteFrequencyData in Symphony component, but if it has to be once per frame, let's just do it in one of them or here. 
+    // It's safe to call multiple times or we can just read the array. Since the array is shared, reading is fine.
+    // The parent doesn't call it in useFrame, so we must call it here once.
+    analyserRef.current.getByteFrequencyData(dataArrayRef.current);
     
-    let bassStr = 0;
-    if (analyserRef.current && dataArrayRef.current) {
-        analyserRef.current.getByteFrequencyData(dataArrayRef.current);
-        bassStr = averageP(dataArrayRef.current, 0, 10) / 255;
-    }
+    // Bass approx 0-10
+    const bassStr = averageP(dataArrayRef.current, 0, 10) / 255;
     
     for(let i = 0; i < count; i++) {
         const offset = i - (count - 1) / 2;
         const x = offset * 1.5;
         const z = -8 - Math.abs(offset) * 0.5; // arc shape
         
-        const localBass = (dataArrayRef.current ? dataArrayRef.current[i % 11] : 0) / 255;
+        const localBass = dataArrayRef.current[i % 11] / 255;
         const targetScaleY = 1 + localBass * 6;
         scales.current[i] = THREE.MathUtils.lerp(scales.current[i], targetScaleY, delta * 8);
         
@@ -154,7 +141,7 @@ function PianoMonoliths({ analyserRef, dataArrayRef }: any) {
     meshRef.current.instanceMatrix.needsUpdate = true;
     
     if (materialRef.current) {
-        materialRef.current.emissive.setScalar(THREE.MathUtils.lerp(materialRef.current.emissive.r, bassStr * 2.5, delta * 10));
+        materialRef.current.emissiveIntensity = THREE.MathUtils.lerp(materialRef.current.emissiveIntensity, bassStr * 8, delta * 10);
     }
   });
 
@@ -163,13 +150,14 @@ function PianoMonoliths({ analyserRef, dataArrayRef }: any) {
        <boxGeometry args={[1.2, 1, 1.2]} />
        <meshPhysicalMaterial 
           ref={materialRef}
-          color="#cccccc"
+          color="#444444"
           transmission={0.9}
-          opacity={1}
+          roughness={0.1}
+          metalness={0.8}
+          emissive="#ffffff"
+          emissiveIntensity={0}
           transparent
-          roughness={0.2}
-          metalness={0.5}
-          emissive="#000000"
+          opacity={1}
        />
     </instancedMesh>
   );
@@ -178,39 +166,23 @@ function PianoMonoliths({ analyserRef, dataArrayRef }: any) {
 function HarpStrings({ analyserRef, dataArrayRef }: any) {
   const count = 24;
   const meshRef = useRef<THREE.InstancedMesh>(null);
-  const materialRef = useRef<THREE.MeshPhysicalMaterial>(null);
+  const materialRef = useRef<THREE.MeshStandardMaterial>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const phases = useMemo(() => Array.from({length: count}, () => Math.random() * Math.PI * 2), []);
 
-  useEffect(() => {
-     if (meshRef.current) {
-        for(let i = 0; i < count; i++) {
-            const offset = i - (count - 1) / 2;
-            const basePathX = offset * 0.5;
-            const basePathZ = -2 + Math.abs(offset) * 0.15;
-            dummy.position.set(basePathX, 5, basePathZ);
-            dummy.scale.set(1, 1, 1);
-            dummy.updateMatrix();
-            meshRef.current.setMatrixAt(i, dummy.matrix);
-        }
-        meshRef.current.instanceMatrix.needsUpdate = true;
-     }
-  }, []);
-
   useFrame(({ clock }, delta) => {
-    if (!meshRef.current) return;
+    if (!analyserRef.current || !dataArrayRef.current || !meshRef.current) return;
     const time = clock.getElapsedTime();
-    let trebleStr = 0;
-    if (analyserRef.current && dataArrayRef.current) {
-        trebleStr = averageP(dataArrayRef.current, 40, 63) / 255;
-    }
+    // Treble approx 40-63
+    const trebleStr = averageP(dataArrayRef.current, 40, 63) / 255;
 
     for(let i = 0; i < count; i++) {
         const offset = i - (count - 1) / 2;
         const basePathX = offset * 0.5;
         const basePathZ = -2 + Math.abs(offset) * 0.15;
         
-        const localTreble = (dataArrayRef.current ? dataArrayRef.current[40 + (i % 23)] : 0) / 255;
+        // Vibrate based on treble
+        const localTreble = dataArrayRef.current[40 + (i % 23)] / 255;
         const vibration = Math.sin(time * 40 + phases[i]) * (localTreble * 0.4 + trebleStr * 0.2);
         
         dummy.position.set(basePathX + vibration, 5, basePathZ);
@@ -221,7 +193,7 @@ function HarpStrings({ analyserRef, dataArrayRef }: any) {
     meshRef.current.instanceMatrix.needsUpdate = true;
     
     if (materialRef.current) {
-        materialRef.current.emissive.setScalar(THREE.MathUtils.lerp(materialRef.current.emissive.r, trebleStr * 2.5, delta * 10));
+        materialRef.current.emissiveIntensity = THREE.MathUtils.lerp(materialRef.current.emissiveIntensity, trebleStr * 8, delta * 10);
     }
   });
 
@@ -230,13 +202,11 @@ function HarpStrings({ analyserRef, dataArrayRef }: any) {
        <cylinderGeometry args={[0.015, 0.015, 20, 8]} />
        <meshPhysicalMaterial 
           ref={materialRef}
-          color="#cccccc"
-          transmission={0.9}
-          opacity={1}
-          transparent
+          color="#444444"
+          emissive="#ffffff"
+          emissiveIntensity={0}
           roughness={0.2}
-          metalness={0.5}
-          emissive="#000000"
+          metalness={0.8}
        />
     </instancedMesh>
   );
@@ -263,11 +233,9 @@ function GuitarRings({ analyserRef, dataArrayRef }: any) {
   }, []);
 
   useFrame((_, delta) => {
-    if (!meshRef.current) return;
-    let midsStr = 0;
-    if (analyserRef.current && dataArrayRef.current) {
-       midsStr = averageP(dataArrayRef.current, 11, 39) / 255;
-    }
+    if (!analyserRef.current || !dataArrayRef.current || !meshRef.current) return;
+    // Mids approx 11-39
+    const midsStr = averageP(dataArrayRef.current, 11, 39) / 255;
     
     if (midsStr > 0.4 && midsStr - lastMidLevel.current > 0.1) {
         // trigger ring
@@ -300,7 +268,7 @@ function GuitarRings({ analyserRef, dataArrayRef }: any) {
         meshRef.current.setMatrixAt(i, dummy.matrix);
         
         // Blend color using opacity
-        const intensity = ring.opacity * 2.5;
+        const intensity = ring.opacity * 10;
         const color = new THREE.Color("#ffffff").multiplyScalar(intensity);
         meshRef.current.setColorAt(i, color);
     }
@@ -314,13 +282,12 @@ function GuitarRings({ analyserRef, dataArrayRef }: any) {
        <torusGeometry args={[1, 0.04, 16, 100]} />
        <meshPhysicalMaterial 
           ref={materialRef}
-          color="#cccccc"
-          transmission={0.9}
-          opacity={1}
-          transparent
+          color="#444444"
+          emissive="#ffffff"
+          emissiveIntensity={1}
           roughness={0.2}
-          metalness={0.5}
-          emissive="#000000"
+          metalness={0.8}
+          transparent
        />
     </instancedMesh>
   );

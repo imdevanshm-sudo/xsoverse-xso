@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { motion, AnimatePresence, useMotionValue, useSpring, useTransform, useAnimation } from 'motion/react';
+import { motion, AnimatePresence, useMotionValue, useSpring, useTransform, useAnimation } from 'framer-motion';
 
 export interface XsoAudioDeckProps {
   src: string;

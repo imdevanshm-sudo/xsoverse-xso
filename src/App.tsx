@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import XsoReceiverSanctum from './components/XsoReceiverSanctum';
 import Xso3DPearl from './components/Xso3DPearl';
 
@@ -179,7 +179,7 @@ export default function App() {
         y: 0
       }}
       animate={{ 
-        opacity: [null, Math.random() * 0.8 + 0.2, Math.random() * 0.5 + 0.1],
+        opacity: [0, Math.random() * 0.8 + 0.2, Math.random() * 0.5 + 0.1],
         y: -Math.random() * 40 - 20 // move up very slowly by 20 to 60 px
       }}
       transition={{

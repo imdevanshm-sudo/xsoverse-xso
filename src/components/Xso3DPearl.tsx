@@ -69,13 +69,15 @@ export default function Xso3DPearl({ isActive = false, color = '#8b5cf6' }: Xso3
   return (
     <div className="w-full h-full relative pointer-events-none">
       <Canvas camera={{ position: [0, 0, 3], fov: 45 }}>
-        <Environment preset="studio" environmentIntensity={0.5} />
-        
-        <PearlCore isActive={isActive} color={color} />
+        <React.Suspense fallback={null}>
+          <Environment preset="studio" environmentIntensity={0.5} />
+          
+          <PearlCore isActive={isActive} color={color} />
 
-        <EffectComposer>
-          <Bloom luminanceThreshold={0.6} mipmapBlur intensity={1.5} />
-        </EffectComposer>
+          <EffectComposer>
+            <Bloom luminanceThreshold={0.6} mipmapBlur intensity={1.5} />
+          </EffectComposer>
+        </React.Suspense>
       </Canvas>
     </div>
   );
