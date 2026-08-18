@@ -6,32 +6,6 @@ import { samplePlayerManifest, sampleXso } from './xso/sample';
 const XsoReceiverSanctum = lazy(() => import('./components/XsoReceiverSanctum'));
 const Xso3DPearl = lazy(() => import('./components/Xso3DPearl'));
 
-const XsoSeal = ({ className = "w-12 h-12" }: { className?: string }) => {
-  return (
-    <svg 
-      viewBox="0 0 100 100" 
-      fill="none" 
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-    >
-      <circle cx="50" cy="50" r="40" stroke="rgba(255, 254, 250, 0.15)" strokeWidth="1" strokeDasharray="3 3" />
-      <circle cx="50" cy="50" r="34" stroke="rgba(255, 254, 250, 0.35)" strokeWidth="0.75" />
-      <path d="M44 50 H56 M50 44 V56" stroke="rgba(255, 254, 250, 0.45)" strokeWidth="0.75" />
-      <text 
-        x="50" 
-        y="53.5" 
-        fill="rgba(255, 254, 250, 0.75)" 
-        fontSize="6.5" 
-        fontFamily="Georgia, serif" 
-        letterSpacing="0.28em" 
-        textAnchor="middle"
-      >
-        XSO
-      </text>
-    </svg>
-  );
-};
-
 const BREATH_DURATION = 6;
 const INITIAL_HOLD_DURATION = 1800;
 const RITUAL_HOLD_DURATION = 4000;
@@ -241,16 +215,6 @@ export default function App() {
     return () => clearInterval(intervalId);
   }, [appState]);
 
-  // Handle the Reemergence flow
-  useEffect(() => {
-    if (appState === 'IDLE_DARK') {
-      const t = setTimeout(() => {
-        setAppState('REEMERGENCE');
-        if (navigator.vibrate) navigator.vibrate(10); // Soft, imperceptible tick
-      }, 1000);
-      return () => clearTimeout(t);
-    }
-  }, [appState]);
 
   // Trigger Space Video Play on Release
   useEffect(() => {
@@ -758,7 +722,7 @@ export default function App() {
       {(showPearl || appState === 'FRACTURE') && (
         <motion.div
           key="central-artifact"
-          className="relative z-10 w-[32vh] h-[32vh] md:w-[38vh] md:h-[38vh] min-w-[240px] min-h-[240px] max-w-[600px] max-h-[600px] rounded-full cursor-pointer pointer-events-auto"
+          className="relative z-10 w-[32vh] h-[32vh] md:w-[38vh] md:h-[38vh] min-w-[240px] min-h-[240px] max-w-[600px] max-h-[600px] rounded-full cursor-pointer pointer-events-auto outline-none focus:outline-none"
           style={{ willChange: 'transform' }}
           onPointerDown={handlePearlPointerDown}
           onPointerUp={handlePointerUp}
@@ -824,20 +788,6 @@ export default function App() {
                 )}
               </AnimatePresence>
 
-              {/* The Intimate XSO Transition Seal */}
-              <AnimatePresence>
-                {appState === 'FOCUSED_INITIAL' && (
-                  <motion.div
-                    className="absolute inset-0 flex items-center justify-center pointer-events-none z-30"
-                    initial={{ opacity: 0, scale: 0.85 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 1.05 }}
-                    transition={{ duration: 0.7, ease: [0.33, 1, 0.68, 1] }}
-                  >
-                    <XsoSeal className="w-20 h-20 sm:w-24 sm:h-24" />
-                  </motion.div>
-                )}
-              </AnimatePresence>
 
               {/* Deep Glowing Cores */}
               <div className="absolute inset-0 rounded-full overflow-hidden pointer-events-none z-20">
