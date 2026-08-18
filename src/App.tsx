@@ -429,7 +429,7 @@ export default function App() {
   };
 
   const isDarkPhase = appState === 'MEMORY_CANVAS' || appState === 'IDLE_DARK' || appState === 'UNSEALED_EMBER' || appState === 'REEMERGENCE' || appState === 'RITUAL_HOLD' || appState === 'FRACTURE' || appState === 'VOICE_PROMPT' || appState === 'RECORDING_VOICE' || appState === 'VOICE_READY_TO_RELEASE' || appState === 'RELEASED_ORBIT';
-  const showPearl = appState === 'IDLE' || appState === 'FOCUSED_INITIAL' || appState === 'REEMERGENCE' || appState === 'RITUAL_HOLD' || appState === 'VOICE_PROMPT' || appState === 'RECORDING_VOICE' || appState === 'VOICE_READY_TO_RELEASE' || appState === 'RELEASED_ORBIT';
+  const showPearl = appState === 'IDLE' || appState === 'FOCUSED_INITIAL';
   const isHoldingPearl = appState === 'FOCUSED_INITIAL' || appState === 'RITUAL_HOLD';
   const isCoolingPhase = appState === 'VOICE_PROMPT' || appState === 'RECORDING_VOICE' || appState === 'VOICE_READY_TO_RELEASE' || appState === 'RELEASED_ORBIT';
   const isOpeningScreen = appState === 'IDLE' || appState === 'FOCUSED_INITIAL';
@@ -719,7 +719,7 @@ export default function App() {
 
       {/* The Central Artifact */}
       <AnimatePresence>
-      {(showPearl || appState === 'FRACTURE') && (
+      {showPearl && (
         <motion.div
           key="central-artifact"
           className="relative z-10 w-[32vh] h-[32vh] md:w-[38vh] md:h-[38vh] min-w-[240px] min-h-[240px] max-w-[600px] max-h-[600px] rounded-full cursor-pointer pointer-events-auto outline-none focus:outline-none"
