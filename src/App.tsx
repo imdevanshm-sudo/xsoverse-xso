@@ -515,6 +515,41 @@ export default function App() {
         </div>
       )}
 
+      {/* Immersive Transition Light */}
+      <AnimatePresence>
+        {(appState === 'FOCUSED_INITIAL' || appState === 'MEMORY_CANVAS') && (
+          <motion.div
+            key="transition-light"
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] pointer-events-none"
+            initial={{ opacity: 0, scale: 0.5, width: '38vh', height: '38vh' }}
+            animate={
+              appState === 'FOCUSED_INITIAL' 
+                ? { 
+                    opacity: [0, 0, 1, 1], 
+                    scale: [0.5, 0.5, 3, 20] 
+                  }
+                : { 
+                    opacity: 0, 
+                    scale: 20 
+                  }
+            }
+            transition={
+              appState === 'FOCUSED_INITIAL'
+                ? { duration: 4.0, times: [0, 0.75, 0.9, 1], ease: 'easeIn' }
+                : { duration: 2.0, ease: 'easeOut' }
+            }
+          >
+            <div 
+              className="w-full h-full rounded-full"
+              style={{
+                background: 'radial-gradient(circle, rgba(240, 230, 255, 1) 0%, rgba(160, 120, 255, 0.8) 25%, rgba(139, 92, 246, 0.3) 50%, transparent 80%)',
+                filter: 'blur(30px)'
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* The Unsealed Ember UI */}
       <AnimatePresence>
         {appState === 'UNSEALED_EMBER' && (
@@ -790,7 +825,7 @@ export default function App() {
 
 
               {/* Deep Glowing Cores */}
-              <div className="absolute inset-0 rounded-full overflow-hidden pointer-events-none z-20">
+              <div className="absolute inset-0 pointer-events-none z-20">
                 <Suspense fallback={null}>
                   <Xso3DPearl
                     isActive={isHoldingPearl}
