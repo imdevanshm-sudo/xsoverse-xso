@@ -16,45 +16,8 @@ export interface XsoReceiverSanctumProps {
   masterAudioUrl: string;
   media: MediaItem[];
   onComplete: () => void;
+  showMakerControls?: boolean;
 }
-
-const createEmojiTexture = (emoji: string, color: string) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return new THREE.Texture();
-    
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, 512, 512);
-    
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 60;
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '64px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    
-    for (let i = 0; i < 20; i++) {
-        ctx.save();
-        const x = Math.random() * 512;
-        const y = Math.random() * 512;
-        const scale = 0.5 + Math.random() * 1.5;
-        const opacity = 0.2 + Math.random() * 0.6;
-        const rotation = Math.random() * Math.PI * 2;
-        
-        ctx.globalAlpha = opacity;
-        ctx.translate(x, y);
-        ctx.rotate(rotation);
-        ctx.scale(scale, scale);
-        ctx.fillText(emoji, 0, 0);
-        ctx.restore();
-    }
-    
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.needsUpdate = true;
-    return texture;
-};
 
 function InspectableArtifact({ children, isCurrent, onInteractStart, onInteractEnd, onClick }: any) {
   const rotX = useFramerSpring(0, { stiffness: 80, damping: 20 });
@@ -147,6 +110,26 @@ function PolaroidSlab({ item, position, isCurrent, onInteractStart, onInteractEn
         }
     });
 
+    // Flexible memory caption parsing driven by XSO content data
+    const rawTitle = item.title || '';
+    const rawSubtitle = item.subtitle || '';
+    const rawDate = item.date || '';
+
+    let displayTitle = rawTitle;
+    let displayDate = rawDate;
+
+    if (!displayDate && rawTitle.includes(' — ')) {
+      const parts = rawTitle.split(' — ');
+      displayTitle = parts[0].trim();
+      displayDate = parts[1]?.trim() || '';
+    } else if (!displayDate && rawTitle.includes(' - ')) {
+      const parts = rawTitle.split(' - ');
+      displayTitle = parts[0].trim();
+      displayDate = parts[1]?.trim() || '';
+    }
+
+    const hasCaption = Boolean(displayTitle || displayDate || rawSubtitle);
+
     return (
         <group position={position} ref={groupRef}>
             {/* Subtle atmospheric back-glow */}
@@ -194,12 +177,18 @@ function PolaroidSlab({ item, position, isCurrent, onInteractStart, onInteractEn
               </mesh>
             </InspectableArtifact>
 
-            {item.title && (
-                 <Html position={[0, -2.7, 0]} center style={{ pointerEvents: 'none', opacity: isCurrent ? 1 : 0, transition: 'opacity 0.6s ease' }}>
-                     <div style={{ width: '80vw', maxWidth: '340px', textAlign: 'center' }}>
-                         <h3 className="text-[#eceae5] text-[13px] md:text-sm tracking-[0.18em] font-serif font-light opacity-80 break-words drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]">
-                             {item.title}
-                         </h3>
+            {hasCaption && (
+                 <Html position={[0, -2.7, 0]} center style={{ pointerEvents: 'none', opacity: isCurrent ? 1 : 0, transition: 'opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+                     <div style={{ width: '85vw', maxWidth: '360px', textAlign: 'center', pointerEvents: 'none' }}>
+                         <p className="text-[#eceae5] text-[13px] sm:text-[14px] md:text-[15px] tracking-[0.2em] font-serif font-light opacity-85 leading-relaxed drop-shadow-[0_2px_16px_rgba(0,0,0,0.9)]">
+                             {displayTitle}
+                             {displayDate && <span className="opacity-60 text-[11px] sm:text-[12px] ml-2 tracking-[0.22em] font-sans font-light">[{displayDate}]</span>}
+                         </p>
+                         {rawSubtitle && (
+                             <p className="mt-1 text-[10px] tracking-[0.22em] font-sans font-light text-white/40 uppercase">
+                                 {rawSubtitle}
+                             </p>
+                         )}
                      </div>
                  </Html>
             )}
@@ -313,12 +302,12 @@ function CassetteArchive({ item, position, isCurrent, onInteractStart, onInterac
          </InspectableArtifact>
          
          {item.title && (
-            <Html position={[0, -2, 0]} center style={{ pointerEvents: 'none', opacity: isCurrent ? 1 : 0, transition: 'opacity 0.5s' }}>
-                <div style={{ width: '80vw', maxWidth: '300px', textAlign: 'center' }}>
-                    <h3 className="text-white text-sm tracking-widest uppercase font-mono opacity-50 break-words">{item.title}</h3>
-                    <p className="text-white/30 text-[10px] tracking-[0.3em] uppercase mt-2 text-center">{isPlaying ? 'PLAYING' : 'TAP TO PLAY'}</p>
-                </div>
-            </Html>
+             <Html position={[0, -2, 0]} center style={{ pointerEvents: 'none', opacity: isCurrent ? 1 : 0, transition: 'opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+                 <div style={{ width: '80vw', maxWidth: '340px', textAlign: 'center', pointerEvents: 'none' }}>
+                     <p className="text-[#eceae5] text-[13px] sm:text-[14px] tracking-[0.18em] font-serif font-light opacity-85 break-words drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]">{item.title}</p>
+                     <p className="text-white/35 text-[9px] sm:text-[10px] tracking-[0.24em] font-sans font-light uppercase mt-1.5">{isPlaying ? 'PLAYING' : 'TOUCH TO LISTEN'}</p>
+                 </div>
+             </Html>
          )}
      </group>
    );
@@ -400,9 +389,9 @@ function IMAXMonolith({ item, position, isCurrent, onInteractStart, onInteractEn
             </InspectableArtifact>
             {isCurrent && <pointLight ref={lightRef} color="#ffffff" intensity={1} distance={30} position={[0, 0, 8]} />}
             {item.title && (
-                 <Html position={[0, -7, 0]} center style={{ pointerEvents: 'none', opacity: isCurrent ? 1 : 0, transition: 'opacity 0.5s' }}>
-                     <div style={{ width: '80vw', maxWidth: '400px', textAlign: 'center' }}>
-                         <h3 className="text-white text-sm tracking-widest uppercase font-mono opacity-50 break-words">{item.title}</h3>
+                 <Html position={[0, -7, 0]} center style={{ pointerEvents: 'none', opacity: isCurrent ? 1 : 0, transition: 'opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+                     <div style={{ width: '80vw', maxWidth: '400px', textAlign: 'center', pointerEvents: 'none' }}>
+                         <p className="text-[#eceae5] text-[13px] sm:text-[14px] tracking-[0.18em] font-serif font-light opacity-85 break-words drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]">{item.title}</p>
                      </div>
                  </Html>
             )}
@@ -632,7 +621,7 @@ function VibeBackground({ auraIndex, vibe, blurBg, blockType, bgUrl }: { auraInd
     );
 }
 
-export default function XsoReceiverSanctum({ auraWeight = [1, 1], masterAudioUrl, media, onComplete }: XsoReceiverSanctumProps) {
+export default function XsoReceiverSanctum({ auraWeight = [1, 1], masterAudioUrl, media, onComplete, showMakerControls = false }: XsoReceiverSanctumProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [auraIndex, setAuraIndex] = useState(0);
   const [aestheticVariant, setAestheticVariant] = useState(0);
@@ -708,40 +697,20 @@ export default function XsoReceiverSanctum({ auraWeight = [1, 1], masterAudioUrl
     setTargetFov(THREE.MathUtils.clamp(newFov, 20, 55));
   }, { target: containerRef, scaleBounds: { min: 0.2, max: 3 }, eventOptions: { passive: false } });
 
-  const [gyroEnabled, setGyroEnabled] = useState(false);
-  const toggleGyro = async () => {
-    if (!gyroEnabled) {
-      if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
-         try {
-           const permission = await (DeviceOrientationEvent as any).requestPermission();
-           if (permission === 'granted') {
-             setGyroEnabled(true);
-           }
-         } catch(e) {
-             console.error(e);
-         }
-      } else {
-         setGyroEnabled(true);
-      }
-    } else {
-      setGyroEnabled(false);
-    }
-  };
+  const [gyroEnabled, setGyroEnabled] = useState(true);
 
   useEffect(() => {
-    GyroState.enabled = gyroEnabled;
+    GyroState.enabled = true;
     const handleOrientation = (e: DeviceOrientationEvent) => {
-      GyroState.alpha = e.alpha || 0;
-      GyroState.beta = e.beta || 0;
-      GyroState.gamma = e.gamma || 0;
+      if (e.alpha !== null || e.beta !== null || e.gamma !== null) {
+        GyroState.alpha = e.alpha || 0;
+        GyroState.beta = e.beta || 0;
+        GyroState.gamma = e.gamma || 0;
+      }
     };
-    if (gyroEnabled) {
-      window.addEventListener('deviceorientation', handleOrientation);
-    } else {
-      GyroState.alpha = 0; GyroState.beta = 0; GyroState.gamma = 0;
-    }
+    window.addEventListener('deviceorientation', handleOrientation);
     return () => window.removeEventListener('deviceorientation', handleOrientation);
-  }, [gyroEnabled]);
+  }, []);
   
   const handleScroll = (dir: number) => {
     if (isInteracting.current) return;
@@ -785,6 +754,11 @@ export default function XsoReceiverSanctum({ auraWeight = [1, 1], masterAudioUrl
     setIsTouching(true);
     if (audioContextRef.current?.state === 'suspended') {
       audioContextRef.current.resume();
+    }
+    if (typeof (DeviceOrientationEvent as any)?.requestPermission === 'function' && !gyroEnabled) {
+      (DeviceOrientationEvent as any).requestPermission().then((res: string) => {
+        if (res === 'granted') setGyroEnabled(true);
+      }).catch(() => {});
     }
   };
 
@@ -843,11 +817,95 @@ export default function XsoReceiverSanctum({ auraWeight = [1, 1], masterAudioUrl
           })}
 
           <EffectComposer>
-            <Bloom luminanceThreshold={0.6} mipmapBlur intensity={1.2} />
+            <Bloom luminanceThreshold={0.6} mipmapBlur intensity={1.0} />
+            <ChromaticAberration offset={new THREE.Vector2(0.00035, 0.00035)} radialModulation={true} modulationOffset={0.5} />
             <Noise opacity={0.02} />
           </EffectComposer>
         </React.Suspense>
       </Canvas>
+
+      {/* Optional Maker / Editor controls (rendered only when showMakerControls is true) */}
+      {showMakerControls && (
+        <div 
+           className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-4 p-4 bg-black/60 border border-white/10 backdrop-blur-md rounded-lg pointer-events-auto z-50 transition-all"
+           onPointerDown={(e) => { e.stopPropagation(); }}
+           onPointerUp={(e) => { e.stopPropagation(); }}
+           onPointerMove={(e) => { e.stopPropagation(); }}
+           onWheel={(e) => { e.stopPropagation(); }}
+        >
+           <div className="flex flex-col gap-2">
+              <div className="text-white/30 text-[10px] tracking-[0.2em] font-mono mb-2 border-b border-white/10 pb-2">VIBE</div>
+              <button 
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setVibe('VOID'); }} 
+                  className={`text-xs font-mono text-left px-2 py-1 transition-all hover:bg-white/5 ${vibe === 'VOID' ? 'text-white border-l-2 border-white pl-2' : 'text-white/40'}`}
+              >
+                  1. MEMORY VOID
+              </button>
+              <button 
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setVibe('LOCATION'); setBlurBg(true); }} 
+                  className={`text-xs font-mono text-left px-2 py-1 transition-all hover:bg-white/5 ${vibe === 'LOCATION' ? 'text-white border-l-2 border-white pl-2' : 'text-white/40'}`}
+              >
+                  2. LOCATION
+              </button>
+           </div>
+
+           {vibe === 'LOCATION' && (
+               <div className="flex flex-col gap-2 mt-2">
+                  <div className="text-white/30 text-[10px] tracking-[0.2em] font-mono mb-2 border-b border-white/10 pb-2">BACKGROUND</div>
+                  <button 
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setBlurBg(!blurBg); }} 
+                      className={`text-xs font-mono text-left px-2 py-1 transition-all hover:bg-white/5 ${blurBg ? 'text-white border-l-2 border-white pl-2' : 'text-white/40'}`}
+                  >
+                      {blurBg ? 'BLUR: ON' : 'BLUR: OFF'}
+                  </button>
+               </div>
+           )}
+           
+           <div className="flex flex-col gap-2 mt-2">
+              <div className="text-white/30 text-[10px] tracking-[0.2em] font-mono mb-2 border-b border-white/10 pb-2">AESTHETIC TYPE</div>
+              <div className="grid grid-cols-2 gap-1 px-1">
+                  {AURA_TYPES.map((aura, i) => (
+                      <button 
+                          key={i} 
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setAuraIndex(i); setAestheticVariant(0); }} 
+                          className={`text-[10px] font-mono text-left px-2 py-1 transition-all hover:bg-white/5 truncate ${auraIndex === i ? 'text-white border-l-2 border-white pl-2' : 'text-white/40'}`}
+                      >
+                          {aura.name.toUpperCase()}
+                      </button>
+                  ))}
+              </div>
+           </div>
+           
+           <div className="flex flex-col gap-2 mt-2">
+              <div className="text-white/30 text-[10px] tracking-[0.2em] font-mono mb-2 border-b border-white/10 pb-2">FLARE INTENSITY</div>
+              <input 
+                  type="range" 
+                  min="0" max="1" step="0.01" 
+                  value={flareIntensity} 
+                  onChange={(e) => setFlareIntensity(parseFloat(e.target.value))}
+                  className="w-full accent-white"
+              />
+           </div>
+           
+           {/* @ts-ignore */}
+           {AURA_TYPES[auraIndex] && AURA_TYPES[auraIndex].textures && (
+              <div className="flex flex-col gap-2 mt-2">
+                  <div className="text-white/30 text-[10px] tracking-[0.2em] font-mono mb-2 border-b border-white/10 pb-2">VARIANT</div>
+                  <div className="flex gap-2 px-2">
+                      {AURA_TYPES[auraIndex].textures.map((_, i) => (
+                          <button 
+                              key={i} 
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setAestheticVariant(i); }} 
+                              className={`w-6 h-6 flex items-center justify-center text-xs font-mono rounded transition-all ${aestheticVariant === i ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                          >
+                              {i + 1}
+                          </button>
+                      ))}
+                  </div>
+              </div>
+           )}
+        </div>
+      )}
 
       {/* Atmospheric timeline progress */}
       <div className="absolute bottom-8 left-0 right-0 flex justify-center pointer-events-none z-50">
