@@ -130,72 +130,81 @@ function InspectableArtifact({ children, isCurrent, onInteractStart, onInteractE
   );
 }
 
-function PolaroidSlab({ item, position, isCurrent, onInteractStart, onInteractEnd, auraIndex = 0, aestheticVariant = 0, vibe = 'VOID', flareIntensity = 0.3 }: any) {
-    const { gl } = useThree();
+function PolaroidSlab({ item, position, isCurrent, onInteractStart, onInteractEnd, auraIndex = 0 }: any) {
     const texture = useTexture(item.url) as THREE.Texture;
     const aura = AURA_TYPES[auraIndex] || AURA_TYPES[0];
-    
     const targetColor = new THREE.Color(aura.color);
-    const emojiTexture = useMemo(() => createEmojiTexture(aura.emoji, aura.color), [aura]);
+    
+    useMemo(() => {
+        if (texture) texture.colorSpace = THREE.SRGBColorSpace;
+    }, [texture]);
     
     const groupRef = useRef<THREE.Group>(null);
     
     useFrame(({ clock }) => {
-        if(groupRef.current) {
-            groupRef.current.position.y = position[1] + Math.sin(clock.getElapsedTime()) * 0.2;
+        if (groupRef.current) {
+            groupRef.current.position.y = position[1] + Math.sin(clock.getElapsedTime() * 0.8) * 0.12;
         }
     });
 
     return (
         <group position={position} ref={groupRef}>
-            {/* Glowing rim light / aura */}
-            <mesh position={[0, 0, -1]}>
-               <planeGeometry args={[12, 16]} />
+            {/* Subtle atmospheric back-glow */}
+            <mesh position={[0, 0, -0.6]}>
+               <planeGeometry args={[9, 12]} />
                <meshBasicMaterial 
                    color={targetColor}
                    transparent={true}
-                   opacity={0.15}
+                   opacity={0.08}
                    depthWrite={false}
                />
             </mesh>
-            <pointLight position={[0, 0, -2]} distance={10} intensity={2} color={targetColor} />
+            <pointLight position={[0, 0, -1.5]} distance={8} intensity={1.2} color={targetColor} />
 
             <InspectableArtifact isCurrent={isCurrent} onInteractStart={onInteractStart} onInteractEnd={onInteractEnd}>
-              {/* Backboard / Frame */}
-              <RoundedBox args={[3.2, 4.2, 0.2]} radius={0.05}>
-                 <meshStandardMaterial color="#111" roughness={0.8} />
+              {/* Signature Keepsake Artifact Slab Frame */}
+              <RoundedBox args={[3.3, 4.3, 0.14]} radius={0.04} smoothness={4}>
+                 <meshStandardMaterial color="#0e0f12" roughness={0.65} metalness={0.15} />
               </RoundedBox>
-              {/* Layer 1: Media */}
-              <mesh position={[0, 0, 0.101]}>
-                 <planeGeometry args={[3.0, 4.0]} />
-                 <meshStandardMaterial map={texture} />
+              
+              {/* Refined Archival Inner Mount / Matte Border */}
+              <mesh position={[0, 0, 0.071]}>
+                 <planeGeometry args={[3.12, 4.12]} />
+                 <meshStandardMaterial color="#17181c" roughness={0.8} />
               </mesh>
-              {/* Layer 2: Flare */}
-              <mesh position={[0, 0, 0.102]}>
-                 <planeGeometry args={[3.0, 4.0]} />
-                 <meshBasicMaterial 
-                     map={emojiTexture}
-                     transparent={true}
-                     opacity={flareIntensity}
-                     blending={THREE.AdditiveBlending}
-                     depthWrite={false}
+
+              {/* Layer 1: Media Photograph */}
+              <mesh position={[0, 0.1, 0.072]}>
+                 <planeGeometry args={[2.92, 3.52]} />
+                 <meshStandardMaterial map={texture} roughness={0.3} />
+              </mesh>
+
+              {/* Layer 2: Protective Keepsake Glass */}
+              <mesh position={[0, 0, 0.073]}>
+                 <planeGeometry args={[3.12, 4.12]} />
+                 <meshPhysicalMaterial 
+                    transparent={true} 
+                    opacity={0.12} 
+                    transmission={0.92} 
+                    clearcoat={1} 
+                    roughness={0.06} 
+                    metalness={0.05} 
+                    ior={1.48} 
                  />
               </mesh>
-              {/* Layer 3: Glass */}
-              <mesh position={[0, 0, 0.103]}>
-                 <planeGeometry args={[3.0, 4.0]} />
-                 <meshPhysicalMaterial transparent={true} opacity={0.1} transmission={0.9} clearcoat={1} roughness={0} metalness={0.1} ior={1.5} />
-              </mesh>
             </InspectableArtifact>
+
             {item.title && (
-                 <Html position={[0, -2.5, 0]} center style={{ pointerEvents: 'none', opacity: isCurrent ? 1 : 0, transition: 'opacity 0.5s' }}>
-                     <div style={{ width: '80vw', maxWidth: '300px', textAlign: 'center' }}>
-                         <h3 className="text-white text-sm tracking-widest uppercase font-mono opacity-50 break-words">{item.title}</h3>
+                 <Html position={[0, -2.7, 0]} center style={{ pointerEvents: 'none', opacity: isCurrent ? 1 : 0, transition: 'opacity 0.6s ease' }}>
+                     <div style={{ width: '80vw', maxWidth: '340px', textAlign: 'center' }}>
+                         <h3 className="text-[#eceae5] text-[13px] md:text-sm tracking-[0.18em] font-serif font-light opacity-80 break-words drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]">
+                             {item.title}
+                         </h3>
                      </div>
                  </Html>
             )}
         </group>
-    )
+    );
 }
 
 function MiniPearl({ isActive, color }: { isActive: boolean; color: string }) {
@@ -801,23 +810,11 @@ export default function XsoReceiverSanctum({ auraWeight = [1, 1], masterAudioUrl
       onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
-      // R3F handles the rest of pointer events through capturing on elements
     >
-
-      <div className="absolute top-6 right-6 z-50">
-         <button 
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); toggleGyro(); }}
-            className="text-white/50 text-[10px] tracking-[0.3em] uppercase py-2 px-4 border border-white/20 rounded-full hover:bg-white/10 transition-colors pointer-events-auto"
-         >
-            [ GYRO: {gyroEnabled ? 'ON' : 'OFF'} ]
-         </button>
-      </div>
-
       <Canvas style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 5 }}>
         <React.Suspense fallback={null}>
-          <color attach="background" args={['#000000']} />
-          <fog attach="fog" args={['#000000', 10, 40]} />
+          <color attach="background" args={['#020104']} />
+          <fog attach="fog" args={['#020104', 10, 40]} />
           <ambientLight intensity={0.2} />
           
           <Environment preset="studio" environmentIntensity={0.1}>
@@ -838,7 +835,7 @@ export default function XsoReceiverSanctum({ auraWeight = [1, 1], masterAudioUrl
             const isCurrent = currentIndex === i;
             return (
               <group key={item.id}>
-                {item.type === 'image' && <PolaroidSlab item={item} position={pos} auraIndex={auraIndex} aestheticVariant={aestheticVariant} vibe={vibe} flareIntensity={flareIntensity} isCurrent={isCurrent} onInteractStart={() => {isInteracting.current = true}} onInteractEnd={() => {isInteracting.current = false}} />}
+                {item.type === 'image' && <PolaroidSlab item={item} position={pos} auraIndex={auraIndex} isCurrent={isCurrent} onInteractStart={() => {isInteracting.current = true}} onInteractEnd={() => {isInteracting.current = false}} />}
                 {item.type === 'audio' && <CassetteArchive item={item} position={pos} isCurrent={isCurrent} onInteractStart={() => {isInteracting.current = true}} onInteractEnd={() => {isInteracting.current = false}} />}
                 {item.type === 'video' && <IMAXMonolith item={item} position={pos} isCurrent={isCurrent} onInteractStart={() => {isInteracting.current = true}} onInteractEnd={() => {isInteracting.current = false}} />}
               </group>
@@ -846,100 +843,23 @@ export default function XsoReceiverSanctum({ auraWeight = [1, 1], masterAudioUrl
           })}
 
           <EffectComposer>
-            <Bloom luminanceThreshold={0.5} mipmapBlur intensity={2} />
-            <ChromaticAberration offset={new THREE.Vector2(0.002, 0.002)} />
-            <Noise opacity={0.03} />
+            <Bloom luminanceThreshold={0.6} mipmapBlur intensity={1.2} />
+            <Noise opacity={0.02} />
           </EffectComposer>
         </React.Suspense>
       </Canvas>
 
-      <div 
-         className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-4 p-4 bg-black/40 border border-white/10 backdrop-blur-md rounded-lg pointer-events-auto z-50 transition-all"
-         onPointerDown={(e) => { e.stopPropagation(); }}
-         onPointerUp={(e) => { e.stopPropagation(); }}
-         onPointerMove={(e) => { e.stopPropagation(); }}
-         onWheel={(e) => { e.stopPropagation(); }}
-      >
-         <div className="flex flex-col gap-2">
-            <div className="text-white/30 text-[10px] tracking-[0.2em] font-mono mb-2 border-b border-white/10 pb-2">VIBE</div>
-            <button 
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setVibe('VOID'); }} 
-                className={`text-xs font-mono text-left px-2 py-1 transition-all hover:bg-white/5 ${vibe === 'VOID' ? 'text-white border-l-2 border-white pl-2' : 'text-white/40'}`}
-            >
-                1. MEMORY VOID
-            </button>
-            <button 
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setVibe('LOCATION'); setBlurBg(true); }} 
-                className={`text-xs font-mono text-left px-2 py-1 transition-all hover:bg-white/5 ${vibe === 'LOCATION' ? 'text-white border-l-2 border-white pl-2' : 'text-white/40'}`}
-            >
-                2. LOCATION
-            </button>
-         </div>
-
-         {vibe === 'LOCATION' && (
-             <div className="flex flex-col gap-2 mt-2">
-                <div className="text-white/30 text-[10px] tracking-[0.2em] font-mono mb-2 border-b border-white/10 pb-2">BACKGROUND</div>
-                <button 
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setBlurBg(!blurBg); }} 
-                    className={`text-xs font-mono text-left px-2 py-1 transition-all hover:bg-white/5 ${blurBg ? 'text-white border-l-2 border-white pl-2' : 'text-white/40'}`}
-                >
-                    {blurBg ? 'BLUR: ON' : 'BLUR: OFF'}
-                </button>
-             </div>
-         )}
-         
-         <div className="flex flex-col gap-2 mt-2">
-            <div className="text-white/30 text-[10px] tracking-[0.2em] font-mono mb-2 border-b border-white/10 pb-2">AESTHETIC TYPE</div>
-            <div className="grid grid-cols-2 gap-1 px-1">
-                {AURA_TYPES.map((aura, i) => (
-                    <button 
-                        key={i} 
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setAuraIndex(i); setAestheticVariant(0); }} 
-                        className={`text-[10px] font-mono text-left px-2 py-1 transition-all hover:bg-white/5 truncate ${auraIndex === i ? 'text-white border-l-2 border-white pl-2' : 'text-white/40'}`}
-                    >
-                        {aura.name.toUpperCase()}
-                    </button>
-                ))}
-            </div>
-         </div>
-         
-         <div className="flex flex-col gap-2 mt-2">
-            <div className="text-white/30 text-[10px] tracking-[0.2em] font-mono mb-2 border-b border-white/10 pb-2">FLARE INTENSITY</div>
-            <input 
-                type="range" 
-                min="0" max="1" step="0.01" 
-                value={flareIntensity} 
-                onChange={(e) => setFlareIntensity(parseFloat(e.target.value))}
-                className="w-full accent-white"
-            />
-         </div>
-         
-         {/* @ts-ignore */}
-         {AURA_TYPES[auraIndex] && AURA_TYPES[auraIndex].textures && (
-            <div className="flex flex-col gap-2 mt-2">
-                <div className="text-white/30 text-[10px] tracking-[0.2em] font-mono mb-2 border-b border-white/10 pb-2">VARIANT</div>
-                <div className="flex gap-2 px-2">
-                    {AURA_TYPES[auraIndex].textures.map((_, i) => (
-                        <button 
-                            key={i}
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setAestheticVariant(i); }}
-                            className={`w-6 h-6 flex items-center justify-center text-xs font-mono rounded transition-all ${aestheticVariant === i ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'}`}
-                        >
-                            {i + 1}
-                        </button>
-                    ))}
-                </div>
-            </div>
-         )}
-      </div>
-
-      {/* Progress indicators */}
-      <div className="absolute bottom-10 left-0 right-0 flex justify-center pointer-events-none z-50">
-        <div className="flex gap-2.5">
+      {/* Atmospheric timeline progress */}
+      <div className="absolute bottom-8 left-0 right-0 flex justify-center pointer-events-none z-50">
+        <div className="flex gap-2 items-center">
           {Array.from({ length: totalStops }).map((_, i) => (
             <div 
               key={i} 
-              className={`w-[5px] h-[5px] rounded-full transition-all duration-700 ${i === currentIndex ? 'bg-white scale-[1.8]' : 'bg-white/30'}`}
+              className={`h-[1.5px] rounded-full transition-all duration-700 ${
+                i === currentIndex 
+                  ? 'w-6 bg-[#eceae5] opacity-50' 
+                  : 'w-2 bg-[#eceae5] opacity-15'
+              }`}
             />
           ))}
         </div>

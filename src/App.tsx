@@ -2,9 +2,8 @@ import React, { useState, useEffect, useRef, useMemo, Suspense, lazy } from 'rea
 import { motion, AnimatePresence } from 'framer-motion';
 import { samplePlayerManifest, sampleXso } from './xso/sample';
 
-// Lazy-load heavy Three.js components — they'll be downloaded only when first rendered
-const XsoReceiverSanctum = lazy(() => import('./components/XsoReceiverSanctum'));
-const Xso3DPearl = lazy(() => import('./components/Xso3DPearl'));
+import XsoReceiverSanctum from './components/XsoReceiverSanctum';
+import Xso3DPearl from './components/Xso3DPearl';
 
 const BREATH_DURATION = 6;
 const INITIAL_HOLD_DURATION = 1800;
@@ -515,38 +514,25 @@ export default function App() {
         </div>
       )}
 
-      {/* Immersive Transition Light */}
+      {/* Atmospheric Transition Light (Full-screen continuous atmospheric bloom, no separate disc) */}
       <AnimatePresence>
         {(appState === 'FOCUSED_INITIAL' || appState === 'MEMORY_CANVAS') && (
           <motion.div
-            key="transition-light"
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] pointer-events-none"
-            initial={{ opacity: 0, scale: 0.5, width: '38vh', height: '38vh' }}
-            animate={
-              appState === 'FOCUSED_INITIAL' 
-                ? { 
-                    opacity: [0, 0, 1, 1], 
-                    scale: [0.5, 0.5, 3, 20] 
-                  }
-                : { 
-                    opacity: 0, 
-                    scale: 20 
-                  }
-            }
+            key="transition-atmosphere"
+            className="absolute inset-0 z-[60] pointer-events-none"
+            initial={{ opacity: 0 }}
+            animate={{
+              opacity: appState === 'FOCUSED_INITIAL' ? [0, 0, 0.4, 0.95] : 0,
+            }}
             transition={
               appState === 'FOCUSED_INITIAL'
-                ? { duration: 4.0, times: [0, 0.75, 0.9, 1], ease: 'easeIn' }
-                : { duration: 2.0, ease: 'easeOut' }
+                ? { duration: 4.0, times: [0, 0.65, 0.85, 1], ease: 'easeInOut' }
+                : { duration: 1.8, ease: 'easeOut' }
             }
-          >
-            <div 
-              className="w-full h-full rounded-full"
-              style={{
-                background: 'radial-gradient(circle, rgba(240, 230, 255, 1) 0%, rgba(160, 120, 255, 0.8) 25%, rgba(139, 92, 246, 0.3) 50%, transparent 80%)',
-                filter: 'blur(30px)'
-              }}
-            />
-          </motion.div>
+            style={{
+              background: 'radial-gradient(ellipse at 50% 50%, rgba(195, 175, 245, 0.75) 0%, rgba(85, 65, 155, 0.8) 40%, rgba(12, 16, 32, 0.95) 85%, rgba(3, 1, 5, 1) 100%)',
+            }}
+          />
         )}
       </AnimatePresence>
 
@@ -810,20 +796,6 @@ export default function App() {
             <FracturedCrystal />
           ) : (
             <>
-              {/* Dim Halo Prompt during REEMERGENCE */}
-              <AnimatePresence>
-                {appState === 'REEMERGENCE' && (
-                  <motion.div 
-                    key="halo-prompt"
-                    className="absolute inset-0 rounded-full border border-white/20"
-                    initial={{ scale: 1, opacity: 0 }}
-                    animate={{ scale: [1, 1.1, 1.2], opacity: [0, 0.5, 0] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
-                  />
-                )}
-              </AnimatePresence>
-
-
               {/* Deep Glowing Cores */}
               <div className="absolute inset-0 pointer-events-none z-20">
                 <Suspense fallback={null}>

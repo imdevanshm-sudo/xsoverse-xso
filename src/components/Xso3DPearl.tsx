@@ -200,7 +200,7 @@ const renderEmotionalLightformers = (emotion: string) => {
         <>
           <Lightformer form="rect" intensity={0.25} color="#faf8f5" scale={[8, 8, 1]} position={[0, 4, -8]} />
           {/* A soft glow expanding/radiating outward */}
-          <Lightformer form="ring" intensity={1.8} color="#fef8e0" scale={[5, 5, 1]} position={[0, 0, -4]} target={[0, 0, 0]} />
+          <Lightformer form="circle" intensity={1.2} color="#fef8e0" scale={[3.5, 3.5, 1]} position={[0, 0, -4]} target={[0, 0, 0]} />
         </>
       );
     case 'memory':
@@ -219,7 +219,7 @@ const renderEmotionalLightformers = (emotion: string) => {
           <Lightformer form="rect" intensity={0.25} color="#faf8f5" scale={[8, 8, 1]} position={[0, 4, -8]} />
           <Lightformer form="circle" intensity={1.4} color="#fefaf0" scale={[1.8, 1.8, 1]} position={[-2.2, 1.5, -2.5]} target={[0, 0, 0]} />
           <Lightformer form="circle" intensity={1.1} color="#ffebd3" scale={[1.5, 1.5, 1]} position={[2.5, 2.2, -2.8]} target={[0, 0, 0]} />
-          <Lightformer form="ring" intensity={0.4} color="#eae6df" scale={[4, 4, 1]} position={[0, 0, -5]} target={[0, 0, 0]} />
+          <Lightformer form="circle" intensity={0.3} color="#eae6df" scale={[3, 3, 1]} position={[0, 0, -5]} target={[0, 0, 0]} />
         </>
       );
   }
