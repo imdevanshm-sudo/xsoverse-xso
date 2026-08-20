@@ -106,7 +106,12 @@ function PolaroidSlab({ item, position, isCurrent, onInteractStart, onInteractEn
     
     useFrame(({ clock }) => {
         if (groupRef.current) {
-            groupRef.current.position.y = position[1] + Math.sin(clock.getElapsedTime() * 0.8) * 0.12;
+            const t = clock.getElapsedTime();
+            // Extremely slow organic drift and micro-rotation for physical feeling
+            groupRef.current.position.y = position[1] + Math.sin(t * 0.4) * 0.04;
+            groupRef.current.rotation.z = Math.sin(t * 0.3) * 0.004;
+            groupRef.current.rotation.x = Math.cos(t * 0.25) * 0.01;
+            groupRef.current.rotation.y = Math.sin(t * 0.2) * 0.012;
         }
     });
 
@@ -132,60 +137,70 @@ function PolaroidSlab({ item, position, isCurrent, onInteractStart, onInteractEn
 
     return (
         <group position={position} ref={groupRef}>
-            {/* Subtle atmospheric back-glow */}
+            {/* Subtle atmospheric back-glow (reduced intensity) */}
             <mesh position={[0, 0, -0.6]}>
                <planeGeometry args={[9, 12]} />
                <meshBasicMaterial 
                    color={targetColor}
                    transparent={true}
-                   opacity={0.08}
+                   opacity={0.04}
                    depthWrite={false}
                />
             </mesh>
-            <pointLight position={[0, 0, -1.5]} distance={8} intensity={1.2} color={targetColor} />
+            <pointLight position={[0, 0, -1.5]} distance={8} intensity={0.6} color={targetColor} />
+            
+            {/* Soft edge fill light to give physical volume to the slab */}
+            <pointLight position={[0, 2, 2.5]} distance={10} intensity={0.4} color="#ffffff" />
+            <pointLight position={[-2, -2, 2]} distance={8} intensity={0.2} color={targetColor} />
 
             <InspectableArtifact isCurrent={isCurrent} onInteractStart={onInteractStart} onInteractEnd={onInteractEnd}>
               {/* Signature Keepsake Artifact Slab Frame */}
               <RoundedBox args={[3.3, 4.3, 0.14]} radius={0.04} smoothness={4}>
-                 <meshStandardMaterial color="#0e0f12" roughness={0.65} metalness={0.15} />
+                 <meshStandardMaterial color="#0a0a0c" roughness={0.75} metalness={0.1} clearcoat={0.05} />
               </RoundedBox>
               
               {/* Refined Archival Inner Mount / Matte Border */}
               <mesh position={[0, 0, 0.071]}>
                  <planeGeometry args={[3.12, 4.12]} />
-                 <meshStandardMaterial color="#17181c" roughness={0.8} />
+                 <meshStandardMaterial color="#121214" roughness={0.95} />
               </mesh>
 
               {/* Layer 1: Media Photograph */}
               <mesh position={[0, 0.1, 0.072]}>
                  <planeGeometry args={[2.92, 3.52]} />
-                 <meshStandardMaterial map={texture} roughness={0.3} />
+                 <meshStandardMaterial map={texture} roughness={0.4} emissive="#ffffff" emissiveIntensity={0.02} />
               </mesh>
 
-              {/* Layer 2: Protective Keepsake Glass */}
+              {/* Layer 2: Protective Keepsake Glass (Restrained reflection) */}
               <mesh position={[0, 0, 0.073]}>
                  <planeGeometry args={[3.12, 4.12]} />
                  <meshPhysicalMaterial 
                     transparent={true} 
-                    opacity={0.12} 
-                    transmission={0.92} 
-                    clearcoat={1} 
-                    roughness={0.06} 
-                    metalness={0.05} 
-                    ior={1.48} 
+                    opacity={0.08} 
+                    transmission={0.85} 
+                    clearcoat={0.6} 
+                    roughness={0.12} 
+                    metalness={0.02} 
+                    ior={1.45} 
                  />
               </mesh>
             </InspectableArtifact>
 
             {hasCaption && (
-                 <Html position={[0, -2.7, 0]} center style={{ pointerEvents: 'none', opacity: isCurrent ? 1 : 0, transition: 'opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-                     <div style={{ width: '85vw', maxWidth: '360px', textAlign: 'center', pointerEvents: 'none' }}>
-                         <p className="text-[#eceae5] text-[13px] sm:text-[14px] md:text-[15px] tracking-[0.2em] font-serif font-light opacity-85 leading-relaxed drop-shadow-[0_2px_16px_rgba(0,0,0,0.9)]">
-                             {displayTitle}
-                             {displayDate && <span className="opacity-60 text-[11px] sm:text-[12px] ml-2 tracking-[0.22em] font-sans font-light">[{displayDate}]</span>}
-                         </p>
+                 <Html position={[0, -2.9, 0]} center style={{ pointerEvents: 'none', opacity: isCurrent ? 1 : 0, transition: 'opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+                     <div style={{ width: '85vw', maxWidth: '340px', textAlign: 'center', pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                         {displayTitle && (
+                             <p className="text-[#e2e0dc] text-[11px] sm:text-[12px] tracking-[0.25em] font-serif font-light opacity-[0.65] leading-relaxed drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)] uppercase">
+                                 {displayTitle}
+                             </p>
+                         )}
+                         {displayDate && (
+                             <p className="text-[#a0a0a0] text-[9px] tracking-[0.3em] font-sans font-light uppercase opacity-40 drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]">
+                                 {displayDate}
+                             </p>
+                         )}
                          {rawSubtitle && (
-                             <p className="mt-1 text-[10px] tracking-[0.22em] font-sans font-light text-white/40 uppercase">
+                             <p className="mt-1 text-[#999999] text-[10px] tracking-[0.1em] font-serif italic font-light opacity-50 drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]">
                                  {rawSubtitle}
                              </p>
                          )}
@@ -622,6 +637,7 @@ function VibeBackground({ auraIndex, vibe, blurBg, blockType, bgUrl }: { auraInd
 }
 
 export default function XsoReceiverSanctum({ auraWeight = [1, 1], masterAudioUrl, media, onComplete, showMakerControls = false }: XsoReceiverSanctumProps) {
+  console.assert(showMakerControls === false, "showMakerControls MUST be false in recipient experience"); console.log("showMakerControls value:", showMakerControls);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [auraIndex, setAuraIndex] = useState(0);
   const [aestheticVariant, setAestheticVariant] = useState(0);
@@ -818,7 +834,7 @@ export default function XsoReceiverSanctum({ auraWeight = [1, 1], masterAudioUrl
 
           <EffectComposer>
             <Bloom luminanceThreshold={0.6} mipmapBlur intensity={1.0} />
-            <ChromaticAberration offset={new THREE.Vector2(0.00035, 0.00035)} radialModulation={true} modulationOffset={0.5} />
+            <ChromaticAberration offset={new THREE.Vector2(0.00015, 0.00015)} radialModulation={true} modulationOffset={0.5} />
             <Noise opacity={0.02} />
           </EffectComposer>
         </React.Suspense>
@@ -908,15 +924,15 @@ export default function XsoReceiverSanctum({ auraWeight = [1, 1], masterAudioUrl
       )}
 
       {/* Atmospheric timeline progress */}
-      <div className="absolute bottom-8 left-0 right-0 flex justify-center pointer-events-none z-50">
-        <div className="flex gap-2 items-center">
+      <div className="absolute bottom-6 left-0 right-0 flex justify-center pointer-events-none z-50">
+        <div className="flex gap-[6px] items-center">
           {Array.from({ length: totalStops }).map((_, i) => (
             <div 
               key={i} 
-              className={`h-[1.5px] rounded-full transition-all duration-700 ${
+              className={`h-[1px] rounded-full transition-all duration-1000 ease-in-out ${
                 i === currentIndex 
-                  ? 'w-6 bg-[#eceae5] opacity-50' 
-                  : 'w-2 bg-[#eceae5] opacity-15'
+                  ? 'w-4 bg-[#eceae5] opacity-25' 
+                  : 'w-1.5 bg-[#eceae5] opacity-10'
               }`}
             />
           ))}
