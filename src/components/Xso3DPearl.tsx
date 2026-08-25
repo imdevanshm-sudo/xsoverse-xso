@@ -9,18 +9,21 @@ interface Xso3DPearlProps {
   color?: string;
   openingMode?: boolean;
   emotion?: 'love' | 'friendship' | 'family' | 'gratitude' | 'memory' | 'anonymous';
+  isHovered?: boolean;
 }
 
 function PearlCore({ 
   isActive, 
   color, 
   openingMode, 
-  emotion = 'anonymous' 
+  emotion = 'anonymous',
+  isHovered = false
 }: { 
   isActive: boolean; 
   color: string; 
   openingMode: boolean; 
   emotion?: string;
+  isHovered?: boolean;
 }) {
   const outerMaterialRef = useRef<any>(null);
   const innerMaterialRef = useRef<any>(null);
@@ -37,38 +40,49 @@ function PearlCore({
     }
 
     const t = activeTimeRef.current;
+    
+    // Very slow 6-second breathing cycle for idle state (omega = ~1.0)
+    const breathT = state.clock.elapsedTime;
+    const idleRotY = Math.sin(breathT * 1.0) * 0.02;
+    const idleRotX = Math.cos(breathT * 0.8) * 0.02;
+    const idleY = Math.sin(breathT * 1.0) * 0.04;
 
     // --- Dynamic parameters based on the 0.0 - 4.0s transition timeline ---
     
     // Phase 1 (0.0 - 0.8s): Subtle physical response & surface reflection shifts
-    const targetRotY = t > 0 ? (Math.min(0.8, t) / 0.8) * 0.45 : 0;
-    const targetRotX = t > 0 ? (Math.min(0.8, t) / 0.8) * -0.2 : 0;
+    const targetRotY = t > 0 ? (Math.min(0.8, t) / 0.8) * 0.45 : idleRotY;
+    const targetRotX = t > 0 ? (Math.min(0.8, t) / 0.8) * -0.2 : idleRotX;
+    const targetY = t > 0 ? 0 : idleY;
     
     if (groupRef.current) {
-      groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, targetRotY, delta * 3.5);
-      groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, targetRotX, delta * 3.5);
+      groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, targetRotY, delta * (t > 0 ? 3.5 : 1));
+      groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, targetRotX, delta * (t > 0 ? 3.5 : 1));
+      groupRef.current.position.y = THREE.MathUtils.lerp(groupRef.current.position.y, targetY, delta * (t > 0 ? 3.5 : 1));
     }
 
+    // Hover luminance increase
+    const hoverBoost = isHovered && !isActive ? 0.3 : 0;
+
     // Phase 2 (0.8 - 1.8s): Internal light begins to appear (soft warm-neutral)
-    let targetInnerEmissive = 0.28;
-    let targetPointLight = 0.25;
+    let targetInnerEmissive = 0.15 + hoverBoost;
+    let targetPointLight = 0.1 + hoverBoost;
     
     if (t > 0.8) {
       const progress = Math.min(1.0, (t - 0.8) / 1.0); // 0.0 to 1.0
-      targetInnerEmissive = 0.28 + progress * 0.65; // grows to 0.93 (soft warm-neutral)
-      targetPointLight = 0.25 + progress * 0.95; // point light illuminates interior
+      targetInnerEmissive = 0.15 + progress * 0.8; // grows to 0.95
+      targetPointLight = 0.1 + progress * 1.0; 
     }
 
     // Phase 3 (1.8 - 3.0s): Pearl becomes more translucent/luminous
-    let targetRoughness = 0.22;
-    let targetThickness = 3.5;
+    let targetRoughness = 0.12;
+    let targetThickness = 3.0;
     
     if (t > 1.8) {
       const progress = Math.min(1.0, (t - 1.8) / 1.2); // 0.0 to 1.0
-      targetRoughness = 0.22 - progress * 0.12; // drops to 0.10 (clearer)
-      targetThickness = 3.5 - progress * 1.5; // drops to 2.0 (thinner shell)
-      targetInnerEmissive = 0.93 + progress * 0.32; // emissive goes up to 1.25
-      targetPointLight = 1.2 + progress * 0.6; // point light goes up to 1.8
+      targetRoughness = 0.12 - progress * 0.08; // drops to 0.04 (clearer)
+      targetThickness = 3.0 - progress * 1.5; // drops to 1.5 (thinner shell)
+      targetInnerEmissive = 0.95 + progress * 0.35; // emissive goes up to 1.3
+      targetPointLight = 1.1 + progress * 0.8; // point light goes up to 1.9
     }
 
     // Phase 4 (3.0 - 4.0s): Pearl dissolves and releases its light
@@ -78,14 +92,14 @@ function PearlCore({
     if (t > 3.0) {
       const progress = Math.min(1.0, (t - 3.0) / 1.0); // 0.0 to 1.0
       targetOpacity = 1.0 - progress; // fades to 0
-      targetScale = 1.0 + progress * 0.25; // swells slightly as it dissolves
-      targetInnerEmissive = 1.25 * (1.0 - progress); // fade core as it spreads
-      targetPointLight = 1.8 + progress * 2.5; // point light flares out
+      targetScale = 1.0 + progress * 0.15; // swells slightly as it dissolves
+      targetInnerEmissive = 1.3 * (1.0 - progress); // fade core as it spreads
+      targetPointLight = 1.9 + progress * 3.0; // point light flares out
     }
 
     // Apply values with lerp for smooth physical transitions
     if (innerMaterialRef.current) {
-      const baseDistort = isActive ? 0.15 : 0.06;
+      const baseDistort = isActive ? 0.1 : 0.04;
       innerMaterialRef.current.distort = THREE.MathUtils.lerp(innerMaterialRef.current.distort, baseDistort, delta * 4);
       innerMaterialRef.current.emissiveIntensity = THREE.MathUtils.lerp(
         innerMaterialRef.current.emissiveIntensity,
@@ -110,9 +124,9 @@ function PearlCore({
     }
 
     if (shellGlowRef.current) {
-      const breath = Math.sin(state.clock.elapsedTime * 1.25);
-      const pulse = 0.16 + breath * 0.03;
-      const targetShellIntensity = isActive ? (t > 3.0 ? 0 : 0.6) : pulse;
+      const breath = Math.sin(breathT * 1.5);
+      const pulse = 0.08 + breath * 0.02 + hoverBoost * 0.2;
+      const targetShellIntensity = isActive ? (t > 3.0 ? 0 : 0.4) : pulse;
       shellGlowRef.current.intensity = THREE.MathUtils.lerp(
         shellGlowRef.current.intensity,
         targetShellIntensity,
@@ -127,41 +141,42 @@ function PearlCore({
 
   return (
     <group ref={groupRef}>
-      {/* Elegant highlight for the opening screen */}
-      {openingMode && <directionalLight position={[2, 4, 3]} intensity={1.5} color="#ffffff" />}
+      {/* Human presence: A very soft warm light originating slightly ABOVE/BEHIND the pearl gently illuminating it */}
+      {openingMode && <pointLight position={[-1, 3, -2]} intensity={0.6} color="#ffe8d6" distance={10} />}
+      {openingMode && <directionalLight position={[0, 5, 2]} intensity={0.3} color="#ffffff" />}
       
-      {/* Outer Shell (Premium Refractive Glass with warm-neutral taupe/champagne character) */}
+      {/* Outer Shell (Deep graphite/obsidian with subtle pearlescence) */}
       <Sphere args={[1, 64, 64]}>
         <MeshTransmissionMaterial
           ref={outerMaterialRef}
           transmission={1}
-          thickness={openingMode ? 3.5 : 1.7}
-          roughness={openingMode ? 0.22 : 0.08}
-          ior={openingMode ? 1.38 : 1.5}
-          chromaticAberration={openingMode ? 0.005 : 0.02}
+          thickness={openingMode ? 3.0 : 1.7}
+          roughness={openingMode ? 0.12 : 0.08}
+          ior={openingMode ? 1.45 : 1.5}
+          chromaticAberration={openingMode ? 0.003 : 0.02}
           backside={true}
-          color={openingMode ? "#221e1a" : "#16131b"} // warm neutral dark espresso tint
-          attenuationColor={openingMode ? "#ffedd5" : undefined} // soft warm body tint scattering
-          attenuationDistance={openingMode ? 1.5 : undefined}
+          color={openingMode ? "#110e14" : "#16131b"} // Deep dark obsidian/graphite with faint purple undertone
+          attenuationColor={openingMode ? "#e0d6ff" : undefined}
+          attenuationDistance={openingMode ? 2.0 : undefined}
           transparent
         />
       </Sphere>
 
-      {/* Volatile Inner Core (The Magic) */}
+      {/* Volatile Inner Core (Soft internal illumination) */}
       <Sphere args={[0.7, 128, 128]}>
         <MeshDistortMaterial
           ref={innerMaterialRef}
           color={color}
           emissive={color}
-          emissiveIntensity={openingMode ? 0.28 : 0.82}
-          distort={openingMode ? 0.06 : 0.12}
-          speed={openingMode ? 0.12 : 0.45}
+          emissiveIntensity={openingMode ? 0.15 : 0.82}
+          distort={openingMode ? 0.04 : 0.12}
+          speed={openingMode ? 0.08 : 0.45}
         />
       </Sphere>
 
       {/* Internal Lighting */}
-      <pointLight ref={lightRef} color={color} intensity={openingMode ? 0.25 : 0.62} distance={4.2} />
-      <pointLight ref={shellGlowRef} color={openingMode ? "#ffe4e6" : "#d9d1ff"} intensity={openingMode ? 0.2 : 0.5} distance={3.4} />
+      <pointLight ref={lightRef} color={color} intensity={openingMode ? 0.1 : 0.62} distance={4.0} />
+      <pointLight ref={shellGlowRef} color={openingMode ? "#ffe4e6" : "#d9d1ff"} intensity={openingMode ? 0.08 : 0.5} distance={3.0} />
     </group>
   );
 }
@@ -229,7 +244,8 @@ export default function Xso3DPearl({
   isActive = false, 
   color = '#8b5cf6', 
   openingMode = false,
-  emotion = 'anonymous'
+  emotion = 'anonymous',
+  isHovered = false
 }: Xso3DPearlProps) {
   return (
     <div className="w-full h-full relative pointer-events-none">
@@ -239,7 +255,7 @@ export default function Xso3DPearl({
             {openingMode && renderEmotionalLightformers(emotion)}
           </Environment>
           
-          <PearlCore isActive={isActive} color={color} openingMode={openingMode} emotion={emotion} />
+          <PearlCore isActive={isActive} color={color} openingMode={openingMode} emotion={emotion} isHovered={isHovered} />
 
           <EffectComposer>
             <Bloom luminanceThreshold={openingMode ? 0.95 : 0.85} mipmapBlur intensity={openingMode ? 0.08 : 0.7} />

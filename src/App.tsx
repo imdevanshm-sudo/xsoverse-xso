@@ -165,6 +165,7 @@ export default function App() {
   const [shareEcho, setShareEcho] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [isOpeningFocused, setIsOpeningFocused] = useState(false);
+  const [isPearlHovered, setIsPearlHovered] = useState(false);
 
   const stars = useMemo(() => Array.from({ length: 60 }).map((_, i) => (
     <motion.div 
@@ -717,24 +718,41 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Layer 3: Typography (Spatially stable, does not scale with pearl) */}
+      {/* Layer 3: Typography and Seal (Spatially stable, does not scale with pearl) */}
       <AnimatePresence>
         {isOpeningScreen && (
-          <motion.div
-            key="opening-typography"
-            className="absolute left-1/2 -translate-x-1/2 pointer-events-none text-center z-30 top-[calc(50%+16vh+45px)] md:top-[calc(50%+19vh+55px)]"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: appState === 'FOCUSED_INITIAL' ? 0 : 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.35, ease: 'easeOut' }}
-          >
-            <p className="text-[12px] sm:text-[14px] md:text-[15px] tracking-[0.16em] font-light text-[#eceae5] font-serif">
-              Someone left this for you.
-            </p>
-            <p className="mt-7 text-[8.5px] sm:text-[9.5px] tracking-[0.22em] font-light text-white/30 uppercase">
-              Touch to open
-            </p>
-          </motion.div>
+          <>
+            {/* Top XSO Seal */}
+            <motion.div
+              key="opening-seal"
+              className="absolute left-1/2 -translate-x-1/2 pointer-events-none text-center z-30 top-[calc(50%-16vh-50px)] md:top-[calc(50%-19vh-65px)]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: appState === 'FOCUSED_INITIAL' ? 0 : 0.4 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+            >
+              <span className="text-[9px] tracking-[0.4em] font-sans font-light text-[#eceae5] opacity-60">
+                X — S — O
+              </span>
+            </motion.div>
+
+            {/* Bottom Message */}
+            <motion.div
+              key="opening-typography"
+              className="absolute left-1/2 -translate-x-1/2 pointer-events-none text-center z-30 top-[calc(50%+16vh+50px)] md:top-[calc(50%+19vh+65px)]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: appState === 'FOCUSED_INITIAL' ? 0 : 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+            >
+              <p className="text-[13px] sm:text-[14px] md:text-[15px] tracking-[0.18em] font-light text-[#eceae5] font-serif opacity-85">
+                Someone left this for you.
+              </p>
+              <p className="mt-8 text-[9px] sm:text-[10px] tracking-[0.3em] font-sans font-light text-white/30 uppercase">
+                Touch to open
+              </p>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
@@ -747,8 +765,15 @@ export default function App() {
           style={{ willChange: 'transform' }}
           onPointerDown={handlePearlPointerDown}
           onPointerUp={handlePointerUp}
-          onPointerLeave={handlePointerUp}
-          onPointerCancel={handlePointerUp}
+          onPointerEnter={() => setIsPearlHovered(true)}
+          onPointerLeave={(e) => {
+            setIsPearlHovered(false);
+            handlePointerUp(e);
+          }}
+          onPointerCancel={(e) => {
+            setIsPearlHovered(false);
+            handlePointerUp(e);
+          }}
           onKeyDown={handleOpeningKeyDown}
           onKeyUp={handlePointerUp}
           onFocus={() => setIsOpeningFocused(true)}
@@ -804,6 +829,7 @@ export default function App() {
                     openingMode={isOpeningScreen}
                     color={appState === 'RITUAL_HOLD' || appState === 'RECORDING_VOICE' ? '#ff0055' : '#8b5cf6'}
                     emotion="anonymous"
+                    isHovered={isPearlHovered}
                   />
                 </Suspense>
               </div>
